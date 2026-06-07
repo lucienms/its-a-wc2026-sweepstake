@@ -269,9 +269,9 @@ button{cursor:pointer;border:none;outline:none;font-family:inherit;}
       <div class="header-title">FIFA WORLD CUP <span class="gold">2026</span></div>
       <div class="header-sub"><em>It&rsquo;s&hellip; a World Cup Sweepstake</em> &middot; &pound;160 Prize Pot</div>
     </div>
-    <div id="countdownWrap" class="countdown-wrap">
-      <div class="cd-label">Draw Begins In</div>
-      <div class="cd-digits" id="cdDigits"><span id="cdH">00</span><span class="sep">:</span><span id="cdM">00</span><span class="sep">:</span><span id="cdS">00</span></div>
+    <div class="countdown-wrap" id="drawTimeWrap">
+      <div class="cd-label">Live Draw</div>
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:700;color:var(--white);letter-spacing:2px;line-height:1.3">18:00 BST<br><span style="font-size:11px;color:var(--gold);letter-spacing:1px">7 June 2026</span></div>
     </div>
   </div>
 </header>
@@ -327,7 +327,7 @@ button{cursor:pointer;border:none;outline:none;font-family:inherit;}
       <p style="font-family:'Barlow Condensed';font-size:11px;color:#333;margin-top:10px;letter-spacing:1px">Auto-starts at 18:00 &middot; or click to begin now</p>
     </div>
 
-    <div id="drawActive" class="hidden">
+    <div id="drawActive" style="display:none">
       <div class="ld-round-badge" id="ldRoundBadge">Round 1 of 6</div>
       <div class="ld-progress-text" id="ldProgressText">Pick 1 of 48</div>
       <div class="ld-bar-wrap"><div class="ld-bar-fill" id="ldBarFill" style="width:0%"></div></div>
@@ -340,9 +340,13 @@ button{cursor:pointer;border:none;outline:none;font-family:inherit;}
       </div>
     </div>
 
-    <div id="drawDone" class="hidden">
+    <div id="drawDone" style="display:none">
       <div class="ld-done-title">&#127881; Draw Complete!</div>
       <div class="ld-done-sub">All 48 teams allocated &mdash; good luck everyone!</div>
+      <div style="margin-top:20px">
+        <button class="btn-gold" id="revealOwnershipBtn" onclick="revealOwnership()">&#128065; Reveal Teams in Tournament &amp; Leaderboard</button>
+        <div style="font-family:'Barlow Condensed';font-size:11px;color:#555;margin-top:8px;letter-spacing:1px">Click when everyone is ready to see the full draw</div>
+      </div>
     </div>
   </div>
 
@@ -413,20 +417,14 @@ button{cursor:pointer;border:none;outline:none;font-family:inherit;}
 </main>
 
 <script>
-/* ════════════════════════════════════════════════════════════
-   CONSTANTS & CONFIG
-════════════════════════════════════════════════════════════ */
-const API_TOKEN = '8eb29e05497c4a2a9e3e3fb805c71add';
-const PROXY = 'https://corsproxy.io/?';
-const API_BASE = 'https://api.football-data.org/v4';
-const DRAW_SEED = 20260607180000;
-const DRAW_TIME = new Date('2026-06-07T18:00:00+01:00').getTime();
-let DRAW_COMPLETE = false; // set true after 18:00 passes
+/* ── CONFIG ── */
+var WORKER_URL = ''; // paste your Cloudflare Worker URL here once deployed
 
-const PLAYERS = ['Conor','Dave','George','Jack','Joel','LJ','Luc','Peter'];
-const PLAYER_COLS = ['#E53935','#F5C518','#43A047','#1E88E5','#FB8C00','#8E24AA','#00ACC1','#6D4C41'];
+/* ── PLAYERS & TEAMS ── */
+var PLAYERS = ['Conor','Dave','George','Jack','Joel','LJ','Luc','Peter'];
+var PLAYER_COLS = ['#E53935','#F5C518','#43A047','#1E88E5','#FB8C00','#8E24AA','#00ACC1','#6D4C41'];
 
-const ALL_TEAMS = [
+var ALL_TEAMS = [
   {name:'Canada',flag:'🇨🇦',pot:1,group:'B',strength:65,rank:24},
   {name:'Mexico',flag:'🇲🇽',pot:1,group:'A',strength:72,rank:16},
   {name:'United States',flag:'🇺🇸',pot:1,group:'D',strength:70,rank:18},
@@ -474,482 +472,493 @@ const ALL_TEAMS = [
   {name:'Türkiye',flag:'🇹🇷',pot:4,group:'D',strength:60,rank:48},
   {name:'Czechia',flag:'🇨🇿',pot:4,group:'A',strength:55,rank:49},
   {name:'DR Congo',flag:'🇨🇩',pot:4,group:'K',strength:40,rank:50},
-  {name:'Iraq',flag:'🇮🇶',pot:4,group:'I',strength:32,rank:51},
+  {name:'Iraq',flag:'🇮🇶',pot:4,group:'I',strength:32,rank:51}
 ];
 
-const STAGE_POINTS = {groupStage:0,r32:3,r16:6,qf:10,sf:15,final:20,winner:22};
+var STAGE_POINTS = {groupStage:0,r32:3,r16:6,qf:10,sf:15,final:20,winner:22};
+var ROUND_LABELS = ['Round 1','Round 2','Round 3','Round 4','Round 5','Round 6'];
+var ROUND_ENDS = [8,16,24,32,40,48];
+var DRAW_SEED = 20260607180000;
+var DRAW_TIME = Date.UTC(2026,5,7,17,0,0);
 
-/* ════════════════════════════════════════════════════════════
-   DRAW ENGINE
-════════════════════════════════════════════════════════════ */
-function makePrng(seed){let s=seed>>>0;return()=>{s=(Math.imul(1664525,s)+1013904223)>>>0;return s/4294967296;};}
-function shuffle(arr,rng){const a=[...arr];for(let i=a.length-1;i>0;i--){const j=Math.floor(rng()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
+/* ── STATE ── */
+var appHands = null;
+var appPicks = null;
+var pickIdx = -1;
+var drawStarted = false;
+var drawDone = false;
+var drawTimer = null;
+var OWNERSHIP_REVEALED = false;
+var liveGroups = {};
+var liveKnockout = {};
+var LIVE_RESULTS = {};
 
-function runDeal(seed){
-  const rng=makePrng(seed>>>0);
-  const bp={1:[],2:[],3:[],4:[]};
-  ALL_TEAMS.forEach(t=>bp[t.pot].push(t));
-  const p1=shuffle(bp[1],rng),p2=shuffle(bp[2],rng),p3=shuffle(bp[3],rng),p4=shuffle(bp[4],rng);
-  const po=shuffle([0,1,2,3,4,5,6,7],rng);
-  const gA=po.slice(0,4),gB=po.slice(4);
-  const hands=Array.from({length:8},()=>[]);
-  const picks=[];
-  const add=(t,pi)=>{picks.push({team:t,playerIdx:pi,pot:t.pot});hands[pi].push(t);};
-  // Round 1: 1×P1 all 8
-  for(let i=0;i<8;i++)add(p1[i],i);
-  // Round 2: 4×P1 groupA + 4×P2 groupB
-  gA.forEach((pi,i)=>add(p1[8+i],pi));
-  gB.forEach((pi,i)=>add(p2[i],pi));
-  // Round 3: 8×P2 all 8
-  for(let i=0;i<8;i++)add(p2[4+i],i);
-  // Round 4: 1×P3 all 8
-  for(let i=0;i<8;i++)add(p3[i],i);
-  // Round 5: 4×P3 groupB + 4×P4 groupA
-  gB.forEach((pi,i)=>add(p3[8+i],pi));
-  gA.forEach((pi,i)=>add(p4[i],pi));
-  // Round 6: 8×P4 all 8
-  for(let i=0;i<8;i++)add(p4[4+i],i);
-  return{hands,picks};
+var STATIC_GROUPS = {
+  A:['Mexico','South Korea','South Africa','Czechia'],
+  B:['Canada','Switzerland','Qatar','Bosnia & Herz.'],
+  C:['Brazil','Morocco','Scotland','Haiti'],
+  D:['United States','Australia','Paraguay','Türkiye'],
+  E:['Germany','Ecuador','Ivory Coast','Curaçao'],
+  F:['Netherlands','Japan','Tunisia','Sweden'],
+  G:['Belgium','Iran','Egypt','New Zealand'],
+  H:['Spain','Uruguay','Saudi Arabia','Cape Verde'],
+  I:['France','Senegal','Norway','Iraq'],
+  J:['Argentina','Austria','Algeria','Jordan'],
+  K:['Portugal','Colombia','Uzbekistan','DR Congo'],
+  L:['England','Croatia','Panama','Ghana']
+};
+
+var NAME_MAP = {
+  'USA':'United States','United States of America':'United States',
+  "Cote d'Ivoire":'Ivory Coast',"Ivory Coast":'Ivory Coast',
+  'Bosnia and Herzegovina':'Bosnia & Herz.','Bosnia & Herzegovina':'Bosnia & Herz.',
+  'Turkey':'Türkiye','Korea Republic':'South Korea',
+  'Czech Republic':'Czechia','Congo DR':'DR Congo',
+  'Democratic Republic of Congo':'DR Congo','Cabo Verde':'Cape Verde'
+};
+
+/* ── HELPERS ── */
+function normName(n){ return NAME_MAP[n] || n; }
+function getTeam(n){ for(var i=0;i<ALL_TEAMS.length;i++){ if(ALL_TEAMS[i].name===n) return ALL_TEAMS[i]; } return null; }
+function getResult(n){ return LIVE_RESULTS[n] || 'groupStage'; }
+function getPts(n){ return STAGE_POINTS[getResult(n)] || 0; }
+function potColor(p){ var m={1:'#F5C518',2:'#C0C0C0',3:'#CD7F32',4:'#6BAED6'}; return m[p]||'#666'; }
+function stageColor(s){ var m={r32:'#43A047',r16:'#8BC34A',qf:'#FFC107',sf:'#FF9800',final:'#F44336',winner:'#F5C518'}; return m[s]||'#555'; }
+function el(id){ return document.getElementById(id); }
+function setText(id,val){ var e=el(id); if(e) e.textContent=val; }
+function getOwner(tName){
+  if(!appHands || !OWNERSHIP_REVEALED) return null;
+  for(var i=0;i<appHands.length;i++){
+    for(var j=0;j<appHands[i].length;j++){
+      if(appHands[i][j].name===tName) return {name:PLAYERS[i],idx:i};
+    }
+  }
+  return null;
 }
-
-// Round boundaries (cumulative pick indices)
-const ROUND_ENDS = [8, 16, 24, 32, 40, 48];
-const ROUND_LABELS = ['Round 1','Round 2','Round 3','Round 4','Round 5','Round 6'];
-function getRound(pickIdx){
-  for(let i=0;i<ROUND_ENDS.length;i++)if(pickIdx<ROUND_ENDS[i])return i;
+function getOwnerIdx(tName){
+  if(!appHands) return -1;
+  for(var i=0;i<appHands.length;i++){
+    for(var j=0;j<appHands[i].length;j++){
+      if(appHands[i][j].name===tName) return i;
+    }
+  }
+  return -1;
+}
+function calcScore(pi){
+  if(!appHands||!appHands[pi]) return 0;
+  var s=0;
+  for(var i=0;i<appHands[pi].length;i++) s+=getPts(appHands[pi][i].name);
+  return s;
+}
+function getRound(idx){
+  for(var i=0;i<ROUND_ENDS.length;i++) if(idx<ROUND_ENDS[i]) return i;
   return 5;
 }
-
-/* ════════════════════════════════════════════════════════════
-   APP STATE
-════════════════════════════════════════════════════════════ */
-let appHands=null,appPicks=null,pickIdx=-1,drawStarted=false,drawDone=false,drawTimer=null;
-// API data
-let liveGroups={};   // groupCode → [{name,pts,played,gf,ga,goaldiff}]
-let liveKnockout={}; // stage → [{homeTeam,awayTeam,winner,status}]
-let apiLoaded=false;
-
-(function init(){
-  const d=runDeal(DRAW_SEED);
-  appHands=d.hands;appPicks=d.picks;
-  renderDrawGrid(0);
-  renderLeaderboard();
-  startCountdown();
-  fetchLiveData();
-  // Auto-refresh every 3 minutes
-  setInterval(fetchLiveData, 3*60*1000);
-})();
-
-/* ════════════════════════════════════════════════════════════
-   COUNTDOWN
-════════════════════════════════════════════════════════════ */
-function startCountdown(){
-  function tick(){
-    const diff = DRAW_TIME - Date.now();
-    const wrap = document.getElementById('countdownWrap');
-    if(!wrap) return;
-    if(diff <= 0){
-      wrap.style.display='none';
-      if(!drawStarted) startDraw();
-      return;
-    }
-    const h=Math.floor(diff/3600000);
-    const m=Math.floor((diff%3600000)/60000);
-    const s=Math.floor((diff%60000)/1000);
-    const cdH=document.getElementById('cdH');
-    const cdM=document.getElementById('cdM');
-    const cdS=document.getElementById('cdS');
-    if(cdH) cdH.textContent=String(h).padStart(2,'0');
-    if(cdM) cdM.textContent=String(m).padStart(2,'0');
-    if(cdS) cdS.textContent=String(s).padStart(2,'0');
-    setTimeout(tick, 1000);
-  }
-  tick();
+function mk(tag,cls,txt){
+  var e=document.createElement(tag);
+  if(cls) e.className=cls;
+  if(txt!==undefined) e.textContent=txt;
+  return e;
 }
 
-/* ════════════════════════════════════════════════════════════
-   DRAW REVEAL
-════════════════════════════════════════════════════════════ */
+/* ── DRAW ENGINE ── */
+function makePrng(seed){
+  var s=seed>>>0;
+  return function(){ s=(Math.imul(1664525,s)+1013904223)>>>0; return s/4294967296; };
+}
+function shuffle(arr,rng){
+  var a=arr.slice();
+  for(var i=a.length-1;i>0;i--){ var j=Math.floor(rng()*(i+1)); var t=a[i]; a[i]=a[j]; a[j]=t; }
+  return a;
+}
+function runDeal(seed){
+  var rng=makePrng(seed>>>0);
+  var bp={1:[],2:[],3:[],4:[]};
+  for(var i=0;i<ALL_TEAMS.length;i++) bp[ALL_TEAMS[i].pot].push(ALL_TEAMS[i]);
+  var p1=shuffle(bp[1],rng),p2=shuffle(bp[2],rng),p3=shuffle(bp[3],rng),p4=shuffle(bp[4],rng);
+  var po=shuffle([0,1,2,3,4,5,6,7],rng);
+  var gA=po.slice(0,4), gB=po.slice(4);
+  var hands=[]; for(var i=0;i<8;i++) hands.push([]);
+  var picks=[];
+  function add(t,pi){ picks.push({team:t,playerIdx:pi}); hands[pi].push(t); }
+  for(var i=0;i<8;i++) add(p1[i],i);
+  for(var i=0;i<4;i++) add(p1[8+i],gA[i]);
+  for(var i=0;i<4;i++) add(p2[i],gB[i]);
+  for(var i=0;i<8;i++) add(p2[4+i],i);
+  for(var i=0;i<8;i++) add(p3[i],i);
+  for(var i=0;i<4;i++) add(p3[8+i],gB[i]);
+  for(var i=0;i<4;i++) add(p4[i],gA[i]);
+  for(var i=0;i<8;i++) add(p4[4+i],i);
+  return {hands:hands,picks:picks};
+}
+
+/* ── DRAW REVEAL ── */
 function startDraw(){
   if(drawStarted) return;
   drawStarted=true;
-  document.getElementById('drawWaiting').classList.add('hidden');
-  document.getElementById('drawActive').classList.remove('hidden');
-  // Switch to draw tab
+  pickIdx=-1;
   switchTab('draw');
-  // Start auto-reveal: first pick immediately, then every 4s
-  showPick(0);
+  setTimeout(function(){
+    var w=el('drawWaiting'); if(w) w.style.display='none';
+    var a=el('drawActive'); if(a) a.style.display='block';
+    advancePick();
+    drawTimer=setInterval(advancePick,4000);
+  },200);
 }
-
+function advancePick(){
+  pickIdx++;
+  if(pickIdx>=appPicks.length){ clearInterval(drawTimer); finishDraw(); return; }
+  showPick(pickIdx);
+}
 function showPick(idx){
-  if(idx >= appPicks.length){ finishDraw(); return; }
-  pickIdx = idx;
-  const pick = appPicks[idx];
-  const round = getRound(idx);
-  document.getElementById('ldRoundBadge').textContent = ROUND_LABELS[round]+' of 6';
-  document.getElementById('ldProgressText').textContent = `Pick ${idx+1} of 48`;
-  document.getElementById('ldBarFill').style.width = `${((idx+1)/48)*100}%`;
-  document.getElementById('ldPickLabel').textContent = `PICK ${idx+1} OF 48`;
-  document.getElementById('ldFlag').textContent = pick.team.flag;
-  document.getElementById('ldTeam').textContent = pick.team.name.toUpperCase();
-  const pName = PLAYERS[pick.playerIdx];
-  const pEl = document.getElementById('ldPlayer');
-  pEl.textContent = pName;
-  pEl.style.color = PLAYER_COLS[pick.playerIdx];
-  // Reveal in draw grid up to this pick
+  var pick=appPicks[idx];
+  var round=getRound(idx);
+  setText('ldRoundBadge',ROUND_LABELS[round]+' of 6');
+  setText('ldProgressText','Pick '+(idx+1)+' of 48');
+  var bar=el('ldBarFill'); if(bar) bar.style.width=(((idx+1)/48)*100)+'%';
+  setText('ldPickLabel','PICK '+(idx+1)+' OF 48');
+  setText('ldFlag',pick.team.flag);
+  setText('ldTeam',pick.team.name.toUpperCase());
+  var pEl=el('ldPlayer');
+  if(pEl){ pEl.textContent=PLAYERS[pick.playerIdx]; pEl.style.color=PLAYER_COLS[pick.playerIdx]; }
   renderDrawGrid(idx+1);
-  // Schedule next pick
-  if(idx < appPicks.length - 1){
-    drawTimer = setTimeout(()=>showPick(idx+1), 4000);
-  } else {
-    setTimeout(finishDraw, 4000);
-  }
 }
-
 function finishDraw(){
   drawDone=true;
-  DRAW_COMPLETE=true;
-  document.getElementById('drawActive').classList.add('hidden');
-  document.getElementById('drawDone').classList.remove('hidden');
+  var a=el('drawActive'); if(a) a.style.display='none';
+  var d=el('drawDone'); if(d) d.style.display='block';
   renderDrawGrid(48);
   renderLeaderboard();
 }
-
-/* ════════════════════════════════════════════════════════════
-   HELPERS
-════════════════════════════════════════════════════════════ */
-const getTeam=n=>ALL_TEAMS.find(t=>t.name===n)||null;
-const potColor=p=>({1:'#F5C518',2:'#C0C0C0',3:'#CD7F32',4:'#6BAED6'})[p]||'#666';
-const stageColor=s=>({r32:'#43A047',r16:'#8BC34A',qf:'#FFC107',sf:'#FF9800',final:'#F44336',winner:'#F5C518'})[s]||'#555';
-
-function getOwner(tName){
-  if(!appHands) return null;
-  const i=appHands.findIndex(h=>h.some(t=>t.name===tName));
-  return i>=0?{name:PLAYERS[i],idx:i}:null;
+function revealOwnership(){
+  OWNERSHIP_REVEALED=true;
+  var btn=el('revealOwnershipBtn');
+  if(btn){ btn.textContent='Teams Revealed!'; btn.disabled=true; }
+  renderGroups(); renderLeaderboard(); renderDrawGrid(48);
 }
 
-// Map API team names → our names
-const NAME_MAP = {
-  'USA':'United States','United States of America':'United States',
-  "Côte d'Ivoire":'Ivory Coast',"Ivory Coast":'Ivory Coast',
-  'Bosnia and Herzegovina':'Bosnia & Herz.','Bosnia & Herzegovina':'Bosnia & Herz.',
-  'Türkiye':'Türkiye','Turkey':'Türkiye',
-  'South Korea':'South Korea','Korea Republic':'South Korea',
-  'Czech Republic':'Czechia','Czechia':'Czechia',
-  'DR Congo':'DR Congo','Congo DR':'DR Congo','Democratic Republic of Congo':'DR Congo',
-  'Cape Verde':'Cape Verde','Cabo Verde':'Cape Verde',
-  'Curaçao':'Curaçao',
-  'England':'England',
-};
-function normName(n){return NAME_MAP[n]||n;}
-
-/* ════════════════════════════════════════════════════════════
-   LIVE DATA
-════════════════════════════════════════════════════════════ */
-async function fetchLiveData(){
-  setApiStatus('amber','Fetching live data…');
-  try {
-    const [stResp, mResp] = await Promise.all([
-      fetch(PROXY+encodeURIComponent(`${API_BASE}/competitions/WC/standings`),{headers:{'X-Auth-Token':API_TOKEN}}),
-      fetch(PROXY+encodeURIComponent(`${API_BASE}/competitions/WC/matches`),{headers:{'X-Auth-Token':API_TOKEN}}),
-    ]);
-    if(!stResp.ok||!mResp.ok) throw new Error(`API ${stResp.status}/${mResp.status}`);
-    const stData=await stResp.json();
-    const mData=await mResp.json();
-    processStandings(stData);
-    processMatches(mData);
-    apiLoaded=true;
-    setApiStatus('green','Live data — updates every 3 min');
-    renderGroups();
-    renderKnockout();
-    renderLeaderboard();
-  } catch(e){
-    console.error('API error:',e);
-    setApiStatus('red','Could not load live data — check connection');
-    renderGroups();
-    renderKnockout();
+/* ── RENDER: DRAW GRID ── */
+function renderDrawGrid(upTo){
+  var container=el('drawGrid');
+  if(!container||!appHands) return;
+  var revealed={};
+  if(appPicks){
+    var lim=Math.min(upTo,appPicks.length);
+    for(var i=0;i<lim;i++) revealed[appPicks[i].team.name]=true;
+  }
+  container.textContent='';
+  for(var pi=0;pi<PLAYERS.length;pi++){
+    var teams=appHands[pi]||[];
+    var col=PLAYER_COLS[pi];
+    var score=0;
+    for(var ti=0;ti<teams.length;ti++){
+      if(revealed[teams[ti].name]) score+=getPts(teams[ti].name);
+    }
+    var card=mk('div','player-card');
+    var hdr=mk('div','pc-header');
+    hdr.style.borderLeft='4px solid '+col;
+    var nm=mk('div','pc-name',PLAYERS[pi]);
+    nm.style.color=col;
+    hdr.appendChild(nm);
+    if(score>0){ var sc=mk('div','pc-score',score+' pts'); hdr.appendChild(sc); }
+    card.appendChild(hdr);
+    var td=mk('div','pc-teams');
+    for(var ti=0;ti<teams.length;ti++){
+      var t=teams[ti];
+      var pill=mk('div');
+      if(!revealed[t.name]&&!drawDone){
+        pill.className='team-pill team-pill-hidden';
+        pill.textContent='— not yet drawn —';
+      } else {
+        var pts=getPts(t.name); var stg=getResult(t.name);
+        pill.className='team-pill';
+        pill.style.borderColor=pts>0?(stageColor(stg)+'66'):'#222';
+        var fl=mk('span','tp-flag',t.flag);
+        var tn=mk('span','tp-name',t.name);
+        var pc=potColor(t.pot);
+        var pot=mk('span','tp-pot','P'+t.pot);
+        pot.style.color=pc; pot.style.borderColor=pc;
+        pill.appendChild(fl); pill.appendChild(tn); pill.appendChild(pot);
+        if(pts>0){ var ps=mk('span','tp-pts',pts); ps.style.color=stageColor(stg); pill.appendChild(ps); }
+      }
+      td.appendChild(pill);
+    }
+    card.appendChild(td);
+    container.appendChild(card);
   }
 }
 
-function setApiStatus(color, msg){
-  const dot=document.getElementById('apiDot');
-  const txt=document.getElementById('apiMsg');
-  if(dot){dot.className='api-dot '+color;}
-  if(txt) txt.textContent=msg;
-}
-
-function processStandings(data){
-  liveGroups={};
-  if(!data.standings) return;
-  data.standings.forEach(grp=>{
-    if(!grp.group) return;
-    // group name like "GROUP_A"
-    const code=grp.group.replace('GROUP_','');
-    liveGroups[code]=grp.table.map(row=>({
-      name:normName(row.team.shortName||row.team.name),
-      pts:row.points,
-      played:row.playedGames,
-      w:row.won,d:row.draw,l:row.lost,
-      gf:row.goalsFor,ga:row.goalsAgainst,
-      gd:row.goalDifference,
-    }));
-  });
-}
-
-function processMatches(data){
-  liveKnockout={r32:[],r16:[],qf:[],sf:[],final:[]};
-  if(!data.matches) return;
-  const stageMap={
-    'ROUND_OF_32':'r32','ROUND_OF_16':'r16',
-    'QUARTER_FINALS':'qf','SEMI_FINALS':'sf','FINAL':'final',
-    'LAST_16':'r16','LAST_8':'qf','LAST_4':'sf',
-  };
-  data.matches.forEach(m=>{
-    const stage=stageMap[m.stage];
-    if(!stage) return;
-    const home=normName(m.homeTeam.shortName||m.homeTeam.name||'TBD');
-    const away=normName(m.awayTeam.shortName||m.awayTeam.name||'TBD');
-    let winner=null;
-    if(m.status==='FINISHED'||m.status==='AWARDED'){
-      if(m.score.winner==='HOME_TEAM') winner=home;
-      else if(m.score.winner==='AWAY_TEAM') winner=away;
-    }
-    liveKnockout[stage].push({home,away,winner,status:m.status});
-  });
-
-  // Derive RESULTS from knockout data for scoring
-  // Teams that appear in r32+ have at least r32 pts
-  // Winner of final = winner, loser = final, SF losers = sf etc.
-  updateResultsFromMatches();
-}
-
-// Build a RESULTS map from live match data
-const LIVE_RESULTS={};
-function updateResultsFromMatches(){
-  // Clear
-  Object.keys(LIVE_RESULTS).forEach(k=>delete LIVE_RESULTS[k]);
-
-  const stageOrder=['r32','r16','qf','sf','final'];
-  // Mark all who appear in a stage as having reached it
-  stageOrder.forEach(stage=>{
-    (liveKnockout[stage]||[]).forEach(m=>{
-      if(m.home&&m.home!=='TBD') LIVE_RESULTS[m.home]=stage;
-      if(m.away&&m.away!=='TBD') LIVE_RESULTS[m.away]=stage;
-      // Loser of match goes no further — already set to this stage
-      // Winner gets promoted in next stage's processing
-    });
-  });
-
-  // Final winner
-  const fins=liveKnockout['final']||[];
-  fins.forEach(m=>{
-    if(m.winner){
-      LIVE_RESULTS[m.winner]='winner';
-      const loser=m.home===m.winner?m.away:m.home;
-      LIVE_RESULTS[loser]='final';
-    }
-  });
-
-  // Also mark group-stage qualifiers from standings
-  Object.keys(liveGroups).forEach(g=>{
-    const sorted=[...liveGroups[g]].sort((a,b)=>b.pts-a.pts||(b.gd-a.gd)||(b.gf-a.gf));
-    sorted.forEach((t,i)=>{
-      // Top 2 auto-qualify (simplified; best 3rd handled separately)
-      if(i<2&&t.played>=3&&!LIVE_RESULTS[t.name]){
-        LIVE_RESULTS[t.name]='r32';
-      }
-    });
-  });
-}
-
-function getResult(n){return LIVE_RESULTS[n]||'groupStage';}
-function getPts(n){return STAGE_POINTS[getResult(n)]||0;}
-function calcScore(i){return(appHands&&appHands[i]||[]).reduce((s,t)=>s+getPts(t.name),0);}
-
-/* ════════════════════════════════════════════════════════════
-   RENDER — DRAW GRID
-════════════════════════════════════════════════════════════ */
-function renderDrawGrid(upTo){
-  const el=document.getElementById('drawGrid');
-  if(!el||!appHands) return;
-  const revealed=new Set();
-  if(appPicks) for(let i=0;i<Math.min(upTo,appPicks.length);i++) revealed.add(appPicks[i].team.name);
-
-  el.innerHTML=PLAYERS.map((name,idx)=>{
-    const teams=appHands[idx]||[];
-    const col=PLAYER_COLS[idx];
-    const score=teams.reduce((s,t)=>revealed.has(t.name)?s+getPts(t.name):s,0);
-    const teamsHTML=teams.map(t=>{
-      const rev=revealed.has(t.name)||DRAW_COMPLETE;
-      if(!rev) return`<div class="team-pill team-pill-hidden">&#8212;&nbsp;not yet drawn&nbsp;&#8212;</div>`;
-      const pts=getPts(t.name),stage=getResult(t.name);
-      return`<div class="team-pill" style="border-color:${pts>0?stageColor(stage)+'66':'#222'}">
-        <span class="tp-flag">${t.flag}</span>
-        <span class="tp-name">${t.name}</span>
-        <span class="tp-pot" style="color:${potColor(t.pot)};border-color:${potColor(t.pot)}55">P${t.pot}</span>
-        ${pts>0?`<span class="tp-pts" style="color:${stageColor(stage)}">${pts}</span>`:''}
-      </div>`;
-    }).join('');
-    return`<div class="player-card fade-in">
-      <div class="pc-header" style="border-left:4px solid ${col}">
-        <div class="pc-name" style="color:${col}">${name}</div>
-        ${score>0?`<div class="pc-score">${score} pts</div>`:''}
-      </div>
-      <div class="pc-teams">${teamsHTML}</div>
-    </div>`;
-  }).join('');
-}
-
-/* ════════════════════════════════════════════════════════════
-   RENDER — GROUPS
-════════════════════════════════════════════════════════════ */
+/* ── RENDER: GROUPS ── */
 function renderGroups(){
-  const el=document.getElementById('groupsGrid');
-  if(!el) return;
-  const groups='ABCDEFGHIJKL'.split('');
-
-  // Fallback static groups if API not loaded yet
-  const STATIC_GROUPS={
-    A:['Mexico','South Korea','South Africa','Czechia'],
-    B:['Canada','Switzerland','Qatar','Bosnia & Herz.'],
-    C:['Brazil','Morocco','Scotland','Haiti'],
-    D:['United States','Australia','Paraguay','Türkiye'],
-    E:['Germany','Ecuador','Ivory Coast','Curaçao'],
-    F:['Netherlands','Japan','Tunisia','Sweden'],
-    G:['Belgium','Iran','Egypt','New Zealand'],
-    H:['Spain','Uruguay','Saudi Arabia','Cape Verde'],
-    I:['France','Senegal','Norway','Iraq'],
-    J:['Argentina','Austria','Algeria','Jordan'],
-    K:['Portugal','Colombia','Uzbekistan','DR Congo'],
-    L:['England','Croatia','Panama','Ghana'],
-  };
-
-  el.innerHTML=groups.map(g=>{
-    let rows=liveGroups[g];
+  var container=el('groupsGrid');
+  if(!container) return;
+  var groups=['A','B','C','D','E','F','G','H','I','J','K','L'];
+  container.textContent='';
+  for(var gi=0;gi<groups.length;gi++){
+    var g=groups[gi];
+    var rows=liveGroups[g];
     if(!rows||rows.length===0){
-      rows=STATIC_GROUPS[g].map(n=>({name:n,pts:0,played:0,gf:0,ga:0,gd:0}));
+      var sl=STATIC_GROUPS[g];
+      rows=[];
+      for(var si=0;si<sl.length;si++) rows.push({name:sl[si],pts:0,played:0,gf:0,ga:0,gd:0});
     }
-    const sorted=[...rows].sort((a,b)=>b.pts-a.pts||(b.gd-a.gd)||(b.gf-a.gf));
-    const played=Math.max(...sorted.map(r=>r.played),0);
-    const maxPlayed=sorted[0]?.played||0;
-
-    const teamsHTML=sorted.map((s,i)=>{
-      const t=getTeam(s.name)||{flag:'🏳️'};
-      const owner=getOwner(s.name);
-      const stage=getResult(s.name);
-      const qual=stage!=='groupStage';
-      const elim=s.played>=3&&!qual&&i>1;
-      const spts=getPts(s.name);
-      return`<div class="gc-team ${qual?'qualified':''} ${elim?'eliminated':''}">
-        <span class="gc-flag">${t.flag||'🏳️'}</span>
-        <span class="gc-name">${s.name}</span>
-        ${owner?`<span class="gc-owner">${owner.name}</span>`:''}
-        <span class="gc-gpts">${s.pts}</span>
-        ${spts>0?`<span class="gc-spts">${spts}</span>`:''}
-      </div>`;
-    }).join('');
-
-    return`<div class="group-card">
-      <div class="gc-header">
-        <span class="gc-letter">Group ${g}</span>
-        <span class="gc-status">${maxPlayed>0?maxPlayed+'/6 played':'Not started'}</span>
-      </div>
-      <div class="gc-teams">${teamsHTML}</div>
-    </div>`;
-  }).join('');
+    var sorted=rows.slice().sort(function(a,b){
+      if(b.pts!==a.pts) return b.pts-a.pts;
+      if(b.gd!==a.gd) return b.gd-a.gd;
+      return b.gf-a.gf;
+    });
+    var maxPlayed=sorted.length>0?(sorted[0].played||0):0;
+    var card=mk('div','group-card');
+    var hdr=mk('div','gc-header');
+    hdr.appendChild(mk('span','gc-letter','Group '+g));
+    hdr.appendChild(mk('span','gc-status',maxPlayed>0?(maxPlayed+'/6 played'):'Not started'));
+    card.appendChild(hdr);
+    var td=mk('div','gc-teams');
+    for(var ti=0;ti<sorted.length;ti++){
+      var s=sorted[ti];
+      var t=getTeam(s.name)||{flag:'',name:s.name};
+      var stg=getResult(s.name);
+      var qual=stg!=='groupStage';
+      var elim=s.played>=3&&!qual&&ti>1;
+      var spts=getPts(s.name);
+      var ownerIdx=getOwnerIdx(s.name);
+      var ownerCol=OWNERSHIP_REVEALED&&ownerIdx>=0?PLAYER_COLS[ownerIdx]:null;
+      var row=mk('div','gc-team'+(qual?' qualified':'')+(elim?' eliminated':''));
+      if(ownerCol) row.style.background=ownerCol+'18';
+      if(ti===1) row.style.borderBottom='2px solid #555';
+      else if(ti===2) row.style.borderBottom='1px solid #333';
+      row.appendChild(mk('span','gc-flag',t.flag));
+      row.appendChild(mk('span','gc-name',s.name));
+      if(OWNERSHIP_REVEALED&&ownerIdx>=0){
+        var oe=mk('span','gc-owner',PLAYERS[ownerIdx]);
+        oe.style.background=ownerCol+'33';
+        oe.style.color=ownerCol;
+        row.appendChild(oe);
+      }
+      row.appendChild(mk('span','gc-gpts',s.pts));
+      if(spts>0){ var sp=mk('span','gc-spts',spts); row.appendChild(sp); }
+      td.appendChild(row);
+    }
+    card.appendChild(td);
+    container.appendChild(card);
+  }
 }
 
-/* ════════════════════════════════════════════════════════════
-   RENDER — KNOCKOUT
-════════════════════════════════════════════════════════════ */
+/* ── RENDER: KNOCKOUT ── */
+function makeMatchRow(name,isWin,isLose){
+  var mr=mk('div','mt-row'+(isWin?' mw':'')+(isLose?' ml':''));
+  if(!name||name==='TBD'){ mr.className='mt-tbd'; mr.textContent='TBD'; return mr; }
+  var tt=getTeam(name)||{flag:'',name:name};
+  var fl=mk('span','mt-flag',tt.flag);
+  var nm=mk('span','mt-name',name);
+  var ow=getOwner(name);
+  if(ow){ var os=mk('span','mt-owner','('+ow.name+')'); nm.appendChild(os); }
+  mr.appendChild(fl); mr.appendChild(nm);
+  return mr;
+}
 function renderKnockout(){
-  const el=document.getElementById('koGrid');
-  if(!el) return;
-  const rounds=[
+  var container=el('koGrid');
+  if(!container) return;
+  var rounds=[
     {key:'r32',label:'Round of 32',pts:3},
     {key:'r16',label:'Round of 16',pts:6},
     {key:'qf',label:'Quarter-Finals',pts:10},
     {key:'sf',label:'Semi-Finals',pts:15},
-    {key:'final',label:'The Final',pts:20},
+    {key:'final',label:'The Final',pts:20}
   ];
-
-  function matchHTML(m){
-    if(!m) return'';
-    function row(n,isWin,isLose){
-      if(!n||n==='TBD') return`<div class="mt-tbd">TBD</div>`;
-      const t=getTeam(n)||{flag:'🏳️'};
-      const owner=getOwner(n);
-      return`<div class="mt-row ${isWin?'mw':''} ${isLose?'ml':''}">
-        <span class="mt-flag">${t.flag||'🏳️'}</span>
-        <span class="mt-name">${n}${owner?` <span class="mt-owner">(${owner.name})</span>`:''}</span>
-      </div>`;
+  var finals=liveKnockout['final']||[];
+  var champ=null;
+  for(var fi=0;fi<finals.length;fi++){ if(finals[fi].winner){champ=finals[fi];break;} }
+  var cd=el('championDisplay');
+  if(cd){
+    cd.textContent='';
+    if(champ){
+      var ct=getTeam(champ.winner)||{flag:'',name:champ.winner};
+      var cc=mk('div','champion-card');
+      cc.appendChild(mk('div','champ-trophy','🏆'));
+      cc.appendChild(mk('div','champ-label','FIFA World Cup 2026 Champions'));
+      cc.appendChild(mk('div','champ-name',ct.flag+' '+champ.winner));
+      var ow=getOwner(champ.winner);
+      if(ow){ cc.appendChild(mk('div','champ-owner','Owned by '+ow.name)); }
+      cd.appendChild(cc);
     }
-    const hw=m.winner===m.home,aw=m.winner===m.away,done=!!m.winner;
-    return`<div class="match-card">${row(m.home,hw,done&&!hw)}${row(m.away,aw,done&&!aw)}</div>`;
   }
-
-  // Champion
-  const finals=liveKnockout['final']||[];
-  const champ=finals.find(m=>m.winner);
-  const cd=document.getElementById('championDisplay');
-  if(champ){
-    const ct=getTeam(champ.winner)||{flag:'🏆'};
-    const ow=getOwner(champ.winner);
-    cd.innerHTML=`<div class="champion-card"><div class="champ-trophy">🏆</div><div class="champ-label">FIFA World Cup 2026 Champions</div><div class="champ-name">${ct.flag} ${champ.winner}</div>${ow?`<div class="champ-owner">Owned by <strong>${ow.name}</strong></div>`:''}</div>`;
-  } else { cd.innerHTML=''; }
-
-  el.innerHTML=rounds.map(r=>{
-    const matches=liveKnockout[r.key]||[];
-    const matchesHTML=matches.length?matches.map(m=>matchHTML(m)).join(''):`<div class="mt-tbd" style="margin:4px 6px">Awaiting results</div>`;
-    return`<div class="ko-round">
-      <div class="ko-round-header">${r.label}<span class="ko-pts">${r.pts} pts to reach</span></div>
-      <div class="ko-matches">${matchesHTML}</div>
-    </div>`;
-  }).join('');
+  container.textContent='';
+  for(var ri=0;ri<rounds.length;ri++){
+    var r=rounds[ri];
+    var matches=liveKnockout[r.key]||[];
+    var col=mk('div','ko-round');
+    var rh=mk('div','ko-round-header',r.label);
+    rh.appendChild(mk('span','ko-pts',r.pts+' pts to reach'));
+    col.appendChild(rh);
+    var md=mk('div','ko-matches');
+    if(matches.length===0){
+      var tbd=mk('div','mt-tbd','Awaiting results');
+      tbd.style.margin='4px 6px';
+      md.appendChild(tbd);
+    } else {
+      for(var mi=0;mi<matches.length;mi++){
+        var m=matches[mi];
+        var mc=mk('div','match-card');
+        var done=!!m.winner;
+        mc.appendChild(makeMatchRow(m.home,m.winner===m.home,done&&m.winner!==m.home));
+        mc.appendChild(makeMatchRow(m.away,m.winner===m.away,done&&m.winner!==m.away));
+        md.appendChild(mc);
+      }
+    }
+    col.appendChild(md);
+    container.appendChild(col);
+  }
 }
 
-/* ════════════════════════════════════════════════════════════
-   RENDER — LEADERBOARD
-════════════════════════════════════════════════════════════ */
+/* ── RENDER: LEADERBOARD ── */
 function renderLeaderboard(){
-  const el=document.getElementById('lbList');
-  if(!el||!appHands) return;
-  const ranked=PLAYERS.map((name,i)=>({name,i,score:calcScore(i),teams:appHands[i]||[]}))
-    .sort((a,b)=>b.score-a.score);
-  const medals=['🥇','🥈','🥉'];
-
-  el.innerHTML=ranked.map((p,rank)=>{
-    const cls=rank===0?'lb-1':rank===1?'lb-2':rank===2?'lb-3':'';
-    const chips=p.teams.map(t=>{
-      const stage=getResult(t.name),pts=getPts(t.name),isW=stage==='winner';
-      return`<div class="lb-chip ${pts>0?'cp':''} ${isW?'cw':''}">${t.flag} ${t.name}${pts>0?` <span style="color:${stageColor(stage)}">${pts}p</span>`:''}</div>`;
-    }).join('');
-    return`<div class="lb-row ${cls}">
-      <div class="lb-rank ${rank===0?'r1':rank===1?'r2':rank===2?'r3':'rn'}">${rank<3?medals[rank]:'#'+(rank+1)}</div>
-      <div class="lb-info"><div class="lb-name" style="color:${PLAYER_COLS[p.i]}">${p.name}</div><div class="lb-chips">${chips}</div></div>
-      <div><div class="lb-score-num">${p.score}</div><div class="lb-score-label">points</div></div>
-    </div>`;
-  }).join('');
+  var container=el('lbList');
+  if(!container||!appHands) return;
+  var medals=['🥇','🥈','🥉'];
+  var ranked=[];
+  for(var i=0;i<PLAYERS.length;i++) ranked.push({name:PLAYERS[i],i:i,score:calcScore(i),teams:appHands[i]||[]});
+  ranked.sort(function(a,b){return b.score-a.score;});
+  container.textContent='';
+  for(var ri=0;ri<ranked.length;ri++){
+    var p=ranked[ri]; var rank=ri;
+    var col=PLAYER_COLS[p.i];
+    var row=mk('div','lb-row'+(rank===0?' lb-1':rank===1?' lb-2':rank===2?' lb-3':''));
+    var rk=mk('div','lb-rank'+(rank===0?' r1':rank===1?' r2':rank===2?' r3':' rn'),rank<3?medals[rank]:('#'+(rank+1)));
+    row.appendChild(rk);
+    var info=mk('div','lb-info');
+    var nm=mk('div','lb-name',p.name); nm.style.color=col;
+    info.appendChild(nm);
+    var chips=mk('div','lb-chips');
+    if(!OWNERSHIP_REVEALED){
+      var ht=mk('span','','Teams hidden until draw is revealed');
+      ht.style.cssText='font-family:Barlow Condensed,sans-serif;font-size:12px;color:#444;letter-spacing:1px';
+      chips.appendChild(ht);
+    } else {
+      for(var ti=0;ti<p.teams.length;ti++){
+        var t=p.teams[ti];
+        var stg=getResult(t.name); var pts=getPts(t.name); var isW=stg==='winner';
+        var chip=mk('div','lb-chip'+(pts>0?' cp':'')+(isW?' cw':''),t.flag+' '+t.name);
+        if(pts>0){ var ps=mk('span','',pts+'p'); ps.style.color=stageColor(stg); chip.appendChild(ps); }
+        chips.appendChild(chip);
+      }
+    }
+    info.appendChild(chips);
+    row.appendChild(info);
+    var sd=mk('div');
+    var sn=mk('div','lb-score-num',p.score); var sl=mk('div','lb-score-label','points');
+    sd.appendChild(sn); sd.appendChild(sl);
+    row.appendChild(sd);
+    container.appendChild(row);
+  }
 }
 
-/* ════════════════════════════════════════════════════════════
-   NAV
-════════════════════════════════════════════════════════════ */
+/* ── API ── */
+function setApiStatus(color,msg){
+  var dot=el('apiDot'); var txt=el('apiMsg');
+  if(dot) dot.className='api-dot '+color;
+  if(txt) txt.textContent=msg;
+}
+function processStandings(data){
+  liveGroups={};
+  if(!data.standings) return;
+  for(var i=0;i<data.standings.length;i++){
+    var grp=data.standings[i];
+    if(!grp.group) continue;
+    var code=grp.group.replace('GROUP_','');
+    var rows=[];
+    for(var j=0;j<grp.table.length;j++){
+      var row=grp.table[j];
+      rows.push({name:normName(row.team.shortName||row.team.name),pts:row.points,played:row.playedGames,w:row.won,d:row.draw,l:row.lost,gf:row.goalsFor,ga:row.goalsAgainst,gd:row.goalDifference});
+    }
+    liveGroups[code]=rows;
+  }
+}
+function processMatches(data){
+  liveKnockout={r32:[],r16:[],qf:[],sf:[],final:[]};
+  var stageMap={'ROUND_OF_32':'r32','ROUND_OF_16':'r16','QUARTER_FINALS':'qf','SEMI_FINALS':'sf','FINAL':'final','LAST_16':'r16','LAST_8':'qf','LAST_4':'sf'};
+  if(!data.matches) return;
+  for(var i=0;i<data.matches.length;i++){
+    var m=data.matches[i];
+    var stage=stageMap[m.stage];
+    if(!stage) continue;
+    var home=normName(m.homeTeam.shortName||m.homeTeam.name||'TBD');
+    var away=normName(m.awayTeam.shortName||m.awayTeam.name||'TBD');
+    var winner=null;
+    if(m.status==='FINISHED'||m.status==='AWARDED'){
+      if(m.score.winner==='HOME_TEAM') winner=home;
+      else if(m.score.winner==='AWAY_TEAM') winner=away;
+    }
+    liveKnockout[stage].push({home:home,away:away,winner:winner,status:m.status});
+  }
+  updateResultsFromMatches();
+}
+function updateResultsFromMatches(){
+  LIVE_RESULTS={};
+  var stageOrder=['r32','r16','qf','sf','final'];
+  for(var si=0;si<stageOrder.length;si++){
+    var stage=stageOrder[si];
+    var matches=liveKnockout[stage]||[];
+    for(var mi=0;mi<matches.length;mi++){
+      var m=matches[mi];
+      if(m.home&&m.home!=='TBD') LIVE_RESULTS[m.home]=stage;
+      if(m.away&&m.away!=='TBD') LIVE_RESULTS[m.away]=stage;
+    }
+  }
+  var fins=liveKnockout['final']||[];
+  for(var fi=0;fi<fins.length;fi++){
+    var m=fins[fi];
+    if(m.winner){
+      LIVE_RESULTS[m.winner]='winner';
+      var loser=m.home===m.winner?m.away:m.home;
+      LIVE_RESULTS[loser]='final';
+    }
+  }
+}
+function fetchLiveData(){
+  if(!WORKER_URL){ setApiStatus('grey','Configure WORKER_URL for live data'); renderGroups(); renderKnockout(); return; }
+  setApiStatus('amber','Fetching live data...');
+  var stDone=false, mDone=false, stData=null, mData=null;
+  function tryFinish(){
+    if(!stDone||!mDone) return;
+    if(stData) processStandings(stData);
+    if(mData) processMatches(mData);
+    var now=new Date();
+    setApiStatus('green','Live — updated '+now.getHours()+':'+('0'+now.getMinutes()).slice(-2));
+    renderGroups(); renderKnockout(); renderLeaderboard();
+  }
+  fetch(WORKER_URL+'/standings').then(function(r){return r.json();}).then(function(d){stData=d;stDone=true;tryFinish();}).catch(function(){stDone=true;setApiStatus('red','Live data unavailable');tryFinish();});
+  fetch(WORKER_URL+'/matches').then(function(r){return r.json();}).then(function(d){mData=d;mDone=true;tryFinish();}).catch(function(){mDone=true;tryFinish();});
+}
+
+/* ── NAV ── */
 function switchTab(tab){
-  document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
-  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
-  document.getElementById('tab-'+tab).classList.add('active');
-  document.querySelector(`[data-tab="${tab}"]`).classList.add('active');
+  var panels=document.querySelectorAll('.tab-panel');
+  for(var i=0;i<panels.length;i++) panels[i].classList.remove('active');
+  var btns=document.querySelectorAll('.tab-btn');
+  for(var i=0;i<btns.length;i++) btns[i].classList.remove('active');
+  var panel=el('tab-'+tab); if(panel) panel.classList.add('active');
+  var btn=document.querySelector('[data-tab="'+tab+'"]'); if(btn) btn.classList.add('active');
   if(tab==='leaderboard') renderLeaderboard();
-  if(tab==='bracket'){renderGroups();renderKnockout();}
+  if(tab==='bracket'){ renderGroups(); renderKnockout(); }
 }
 function showPhase(p){
-  document.getElementById('groupsView').classList.toggle('hidden',p!=='groups');
-  document.getElementById('knockoutView').classList.toggle('hidden',p!=='knockout');
-  document.getElementById('phaseGrpBtn').classList.toggle('active',p==='groups');
-  document.getElementById('phaseKoBtn').classList.toggle('active',p==='knockout');
+  var gv=el('groupsView'); if(gv) gv.style.display=p==='groups'?'block':'none';
+  var kv=el('knockoutView'); if(kv) kv.style.display=p==='knockout'?'block':'none';
+  var gb=el('phaseGrpBtn'); if(gb) gb.className='phase-btn'+(p==='groups'?' active':'');
+  var kb=el('phaseKoBtn'); if(kb) kb.className='phase-btn'+(p==='knockout'?' active':'');
   if(p==='knockout') renderKnockout();
 }
+
+/* ── INIT ── */
+var deal=runDeal(DRAW_SEED);
+appHands=deal.hands;
+appPicks=deal.picks;
+renderDrawGrid(0);
+renderLeaderboard();
+fetchLiveData();
+var hideAfter=Date.UTC(2026,5,7,18,0,0);
+var dtw=el('drawTimeWrap'); if(dtw&&Date.now()>hideAfter) dtw.style.display='none';
 switchTab('bracket');
 </script>
 </body>
