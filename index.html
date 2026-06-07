@@ -8,15 +8,15 @@
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow+Condensed:wght@400;600;700;800;900&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
 :root {
-  --gold:#F5C518;--gold-dark:#C9A000;--gold-light:#FFE566;
-  --trophy-green:#2E7D32;--trophy-green-light:#43A047;
-  --black:#0A0A0A;--near-black:#0D0D0D;--card-bg:#141414;--card-border:#252525;
+  --gold:#FFD600;--gold-dark:#F9A825;--gold-light:#FFEE58;
+  --trophy-green:#00C853;--trophy-green-light:#69F0AE;
+  --black:#050508;--near-black:#0C0C14;--card-bg:#12121E;--card-border:#2a2a40;
   --white:#FFFFFF;
-  --mx-green:#006847;--mx-red:#CE1126;
-  --ca-red:#D60000;
-  --us-blue:#0A3161;--us-red:#B22234;
-  --pot1:#F5C518;--pot2:#C0C0C0;--pot3:#CD7F32;--pot4:#6BAED6;
-  --text-muted:#777;--text-dim:#444;
+  --mx-green:#00BFA5;--mx-red:#FF1744;
+  --ca-red:#FF1744;
+  --us-blue:#2979FF;--us-red:#FF1744;
+  --pot1:#FFD600;--pot2:#B0BEC5;--pot3:#FF9100;--pot4:#40C4FF;
+  --text-muted:#888;--text-dim:#555;
 }
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
 html{scroll-behavior:smooth;}
@@ -75,12 +75,31 @@ button{cursor:pointer;border:none;outline:none;font-family:inherit;}
 .sec-rule{flex:1;height:2px;background:linear-gradient(90deg,var(--gold),transparent);}
 
 /* ── COLOUR ACCENT HELPERS ── */
-.accent-bar{height:3px;border-radius:2px;background:linear-gradient(90deg,var(--mx-green),var(--ca-red),var(--us-blue));margin-bottom:20px;border-radius:2px;}
+.accent-bar{height:4px;border-radius:2px;background:linear-gradient(90deg,#006847 0%,#006847 10%,#d4d4d4 26%,#d4d4d4 27%,#CE1126 35%,#CE1126 44%,#d4d4d4 55%,#d4d4d4 55%,#CE1126 64%,#CE1126 73%,#0A3161 91%,#0A3161 100%);margin-bottom:20px;}
 .gold-rule{height:1px;background:linear-gradient(90deg,var(--gold-dark),transparent);margin:16px 0;}
 
 /* ── CARDS ── */
-.card{background:var(--card-bg);border:1px solid var(--card-border);border-radius:16px;padding:20px;}
+.card{background:#181828;border:2px solid transparent;border-radius:16px;padding:20px;position:relative;}
 .card-sm{background:var(--card-bg);border:1px solid var(--card-border);border-radius:12px;padding:14px;}
+
+/* ── GRADIENT BORDER UTILITY ── */
+/* Applied via wrapper: element gets a gradient background, inner content sits on card-bg */
+.grad-border {
+  background: linear-gradient(135deg,#006847 0%,#006847 10%,#d4d4d4 26%,#d4d4d4 27%,#CE1126 35%,#CE1126 44%,#d4d4d4 55%,#d4d4d4 55%,#CE1126 64%,#CE1126 73%,#0A3161 91%,#0A3161 100%) border-box;
+  border: 2px solid transparent;
+  border-radius: 16px;
+}
+.grad-border-sm {
+  background: linear-gradient(135deg,#006847 0%,#006847 10%,#d4d4d4 26%,#d4d4d4 27%,#CE1126 35%,#CE1126 44%,#d4d4d4 55%,#d4d4d4 55%,#CE1126 64%,#CE1126 73%,#0A3161 91%,#0A3161 100%) border-box;
+  border: 2px solid transparent;
+  border-radius: 14px;
+}
+/* For elements that need an inner bg: wrap content in a div with bg */
+.grad-border-inner {
+  background: #12121E;
+  border-radius: 14px;
+  height: 100%;
+}
 
 /* ══════════════════════════════════════
    TAB 1: DRAW
@@ -99,8 +118,8 @@ button{cursor:pointer;border:none;outline:none;font-family:inherit;}
 .draw-aside-row strong{color:var(--gold);}
 
 /* LIVE DRAW STAGE */
-.live-draw-wrap{background:linear-gradient(160deg,#0f0f00 0%,#001008 50%,#000a1a 100%);border:1px solid #2a2a00;border-radius:20px;padding:28px;text-align:center;margin-bottom:28px;position:relative;overflow:hidden;}
-.live-draw-wrap::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,var(--mx-green),var(--gold),var(--trophy-green),var(--gold),var(--us-blue));}
+.live-draw-wrap{background:linear-gradient(160deg,#1a1500 0%,#001a0e 50%,#00091f 100%);border:2px solid transparent;background-clip:padding-box;position:relative;border-radius:20px;padding:28px;text-align:center;margin-bottom:28px;position:relative;overflow:hidden;}
+.live-draw-wrap::before{content:'';position:absolute;inset:-2px;border-radius:22px;background:linear-gradient(135deg,#FFD600 0%,#FFD600 30%,#00C853 50%,#69F0AE 65%,#FFD600 80%,#00C853 100%);z-index:-1;}
 .ld-title{font-family:'Bebas Neue',sans-serif;font-size:38px;letter-spacing:6px;color:var(--gold);margin-bottom:4px;}
 .ld-date{font-family:'Barlow Condensed',sans-serif;font-size:11px;letter-spacing:3px;color:#666;text-transform:uppercase;margin-bottom:22px;}
 .ld-round-badge{display:inline-block;font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:700;letter-spacing:3px;text-transform:uppercase;padding:4px 14px;border-radius:100px;border:1px solid var(--gold-dark);color:var(--gold);background:rgba(245,197,24,.08);margin-bottom:16px;}
@@ -122,7 +141,7 @@ button{cursor:pointer;border:none;outline:none;font-family:inherit;}
 
 /* PLAYER CARDS */
 .draw-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px;}
-.player-card{background:var(--card-bg);border-radius:16px;overflow:hidden;border:1px solid var(--card-border);transition:transform .2s,box-shadow .2s;}
+.player-card{background:#181828;border-radius:16px;overflow:hidden;border:2px solid transparent;transition:transform .2s,box-shadow .2s;position:relative;}
 .player-card:hover{transform:translateY(-2px);box-shadow:0 8px 32px rgba(0,0,0,.5);}
 .pc-header{padding:12px 15px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #1a1a1a;}
 .pc-name{font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:2px;}
@@ -143,7 +162,7 @@ button{cursor:pointer;border:none;outline:none;font-family:inherit;}
 .phase-btn.active{background:var(--gold);color:var(--black);}
 
 .groups-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px;}
-.group-card{background:var(--card-bg);border:1px solid var(--card-border);border-radius:14px;overflow:hidden;}
+.group-card{background:#181828;border:2px solid transparent;border-radius:14px;overflow:hidden;position:relative;}
 .gc-header{padding:9px 13px;display:flex;align-items:center;justify-content:space-between;background:#0c0c0c;border-bottom:1px solid #1a1a1a;}
 .gc-letter{font-family:'Bebas Neue',sans-serif;font-size:26px;letter-spacing:2px;color:var(--gold);line-height:1;}
 .gc-status{font-family:'Barlow Condensed',sans-serif;font-size:10px;letter-spacing:2px;color:#444;text-transform:uppercase;}
@@ -154,7 +173,7 @@ button{cursor:pointer;border:none;outline:none;font-family:inherit;}
 .gc-team.eliminated{opacity:.38;}
 .gc-flag{font-size:16px;flex-shrink:0;}
 .gc-name{flex:1;font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:600;}
-.gc-owner{font-family:'Barlow Condensed',sans-serif;font-size:9px;font-weight:700;letter-spacing:1px;padding:2px 6px;border-radius:100px;background:rgba(255,255,255,.05);color:#aaa;flex-shrink:0;}
+.gc-owner{font-family:'Barlow Condensed',sans-serif;font-size:9px;font-weight:700;letter-spacing:1px;padding:2px 6px;border-radius:100px;flex-shrink:0;}
 .gc-gpts{font-family:'Barlow Condensed',sans-serif;font-size:12px;color:#555;min-width:16px;text-align:center;}
 .gc-spts{font-family:'Bebas Neue',sans-serif;font-size:17px;color:var(--gold);min-width:22px;text-align:right;}
 
@@ -165,7 +184,7 @@ button{cursor:pointer;border:none;outline:none;font-family:inherit;}
 .ko-round-header{font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:var(--gold);text-align:center;padding:8px 4px 12px;border-bottom:1px solid #1a1a1a;margin-bottom:8px;}
 .ko-pts{display:block;font-size:9px;color:#555;letter-spacing:1px;margin-top:2px;}
 .ko-matches{display:flex;flex-direction:column;gap:6px;padding:0 6px;justify-content:space-around;flex:1;}
-.match-card{background:var(--card-bg);border:1px solid var(--card-border);border-radius:10px;overflow:hidden;}
+.match-card{background:#181828;border:2px solid transparent;border-radius:10px;overflow:hidden;position:relative;}
 .mt-row{display:flex;align-items:center;gap:6px;padding:7px 9px;font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:600;}
 .mt-row:first-child{border-bottom:1px solid #1a1a1a;}
 .mt-row.mw{background:rgba(245,197,24,.07);color:var(--gold);}
@@ -193,7 +212,7 @@ button{cursor:pointer;border:none;outline:none;font-family:inherit;}
    TAB 3: LEADERBOARD
 ══════════════════════════════════════ */
 .lb-list{display:flex;flex-direction:column;gap:10px;}
-.lb-row{background:var(--card-bg);border:1px solid var(--card-border);border-radius:14px;padding:15px 18px;display:flex;align-items:center;gap:14px;transition:transform .15s;}
+.lb-row{background:#181828;border:2px solid transparent;border-radius:14px;padding:15px 18px;display:flex;align-items:center;gap:14px;transition:transform .15s;position:relative;}
 .lb-row:hover{transform:translateX(3px);}
 .lb-row.lb-1{border-color:var(--gold);background:linear-gradient(135deg,#1a1200,var(--card-bg));}
 .lb-row.lb-2{border-color:#666;}
@@ -216,7 +235,7 @@ button{cursor:pointer;border:none;outline:none;font-family:inherit;}
    TAB 4: RULES
 ══════════════════════════════════════ */
 .rules-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
-.rules-card{background:var(--card-bg);border:1px solid var(--card-border);border-radius:16px;padding:20px;}
+.rules-card{background:#181828;border:2px solid transparent;border-radius:16px;padding:20px;position:relative;}
 .rules-card.full{grid-column:1/-1;}
 .rc-title{font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:3px;color:var(--gold);margin-bottom:14px;display:flex;align-items:center;gap:8px;}
 .rules-body{font-size:13px;color:#aaa;line-height:1.85;}
@@ -250,6 +269,21 @@ button{cursor:pointer;border:none;outline:none;font-family:inherit;}
   .tab-btn{font-size:10px;letter-spacing:1px;padding:11px 3px;}
   .lb-row{flex-wrap:wrap;}
   .header-inner{gap:10px;}
+}
+
+/* Gradient border effect — compatible with Safari */
+.gb {
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  position: relative;
+}
+.gb::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: inherit;
+  background: linear-gradient(135deg,#006847 0%,#006847 10%,#d4d4d4 26%,#d4d4d4 27%,#CE1126 35%,#CE1126 44%,#d4d4d4 55%,#d4d4d4 55%,#CE1126 64%,#CE1126 73%,#0A3161 91%,#0A3161 100%);
+  z-index: -1;
 }
 </style>
 </head>
@@ -293,7 +327,7 @@ button{cursor:pointer;border:none;outline:none;font-family:inherit;}
   <div class="sec-header"><div class="sec-title">THE <span class="gold">DRAW</span></div><div class="sec-rule"></div></div>
   <div class="accent-bar"></div>
 
-  <div class="draw-explainer card" style="padding:20px 24px">
+  <div class="draw-explainer card gb" style="padding:20px 24px">
     <div>
       <div class="exp-label">How The Draw Works</div>
       <div class="exp-text">
@@ -382,7 +416,7 @@ button{cursor:pointer;border:none;outline:none;font-family:inherit;}
 <div id="tab-rules" class="tab-panel">
   <div class="sec-header"><div class="sec-title">THE <span class="gold">RULES</span></div><div class="sec-rule"></div></div>
   <div class="rules-grid">
-    <div class="rules-card">
+    <div class="rules-card gb">
       <div class="rc-title">&#127919; Scoring System</div>
       <table class="scoring-tbl">
         <tr><td>Eliminated in group stage</td><td>0 pts</td></tr>
@@ -393,9 +427,9 @@ button{cursor:pointer;border:none;outline:none;font-family:inherit;}
         <tr><td>Reach the Final (Runner-Up)</td><td>20 pts</td></tr>
         <tr><td style="color:var(--gold);font-weight:700">&#127942; World Cup Champions</td><td style="color:var(--gold)">22 pts</td></tr>
       </table>
-      <div style="margin-top:12px;font-family:'Barlow Condensed';font-size:12px;color:#555;letter-spacing:1px">Maximum possible score: <strong style="color:var(--gold)">76 pts</strong></div>
+
     </div>
-    <div class="rules-card">
+    <div class="rules-card gb">
       <div class="rc-title">&#128176; Prize Money</div>
       <div class="rules-body">
         <p>Each of the <strong>8 players</strong> contributes <strong>&pound;20</strong>, creating a total prize pot of <strong>&pound;160</strong>.</p>
@@ -422,7 +456,7 @@ var WORKER_URL = ''; // paste your Cloudflare Worker URL here once deployed
 
 /* ── PLAYERS & TEAMS ── */
 var PLAYERS = ['Conor','Dave','George','Jack','Joel','LJ','Luc','Peter'];
-var PLAYER_COLS = ['#E53935','#F5C518','#43A047','#1E88E5','#FB8C00','#8E24AA','#00ACC1','#6D4C41'];
+var PLAYER_COLS = ['#FF1744','#FFD600','#00E676','#2979FF','#FF6D00','#D500F9','#00E5FF','#FF4081'];
 
 var ALL_TEAMS = [
   {name:'Canada',flag:'🇨🇦',pot:1,group:'B',strength:65,rank:24},
@@ -593,8 +627,13 @@ function runDeal(seed){
 }
 
 /* ── DRAW REVEAL ── */
+var DRAW_PIN = 'wc2026'; // change this to your preferred PIN
+
 function startDraw(){
   if(drawStarted) return;
+  // PIN protection — prompt for password
+  var pin = prompt('Enter the draw PIN to begin:');
+  if(pin !== DRAW_PIN){ alert('Incorrect PIN. The draw can only be started by the host.'); return; }
   drawStarted=true;
   pickIdx=-1;
   switchTab('draw');
@@ -625,6 +664,7 @@ function showPick(idx){
 }
 function finishDraw(){
   drawDone=true;
+  try{ localStorage.setItem('wc26_draw_done','true'); } catch(e){}
   var a=el('drawActive'); if(a) a.style.display='none';
   var d=el('drawDone'); if(d) d.style.display='block';
   renderDrawGrid(48);
@@ -632,6 +672,7 @@ function finishDraw(){
 }
 function revealOwnership(){
   OWNERSHIP_REVEALED=true;
+  try{ localStorage.setItem('wc26_ownership_revealed','true'); } catch(e){}
   var btn=el('revealOwnershipBtn');
   if(btn){ btn.textContent='Teams Revealed!'; btn.disabled=true; }
   renderGroups(); renderLeaderboard(); renderDrawGrid(48);
@@ -654,7 +695,7 @@ function renderDrawGrid(upTo){
     for(var ti=0;ti<teams.length;ti++){
       if(revealed[teams[ti].name]) score+=getPts(teams[ti].name);
     }
-    var card=mk('div','player-card');
+    var card=mk('div','player-card gb');
     var hdr=mk('div','pc-header');
     hdr.style.borderLeft='4px solid '+col;
     var nm=mk('div','pc-name',PLAYERS[pi]);
@@ -708,7 +749,7 @@ function renderGroups(){
       return b.gf-a.gf;
     });
     var maxPlayed=sorted.length>0?(sorted[0].played||0):0;
-    var card=mk('div','group-card');
+    var card=mk('div','group-card gb');
     var hdr=mk('div','gc-header');
     hdr.appendChild(mk('span','gc-letter','Group '+g));
     hdr.appendChild(mk('span','gc-status',maxPlayed>0?(maxPlayed+'/6 played'):'Not started'));
@@ -724,9 +765,9 @@ function renderGroups(){
       var ownerIdx=getOwnerIdx(s.name);
       var ownerCol=OWNERSHIP_REVEALED&&ownerIdx>=0?PLAYER_COLS[ownerIdx]:null;
       var row=mk('div','gc-team'+(qual?' qualified':'')+(elim?' eliminated':''));
-      if(ownerCol) row.style.background=ownerCol+'18';
-      if(ti===1) row.style.borderBottom='2px solid #555';
-      else if(ti===2) row.style.borderBottom='1px solid #333';
+      if(ownerCol) row.style.background=ownerCol+'40';
+      if(ti===1) row.style.borderBottom='3px solid #F5C518';
+      else if(ti===2) row.style.borderBottom='2px solid #E53935';
       row.appendChild(mk('span','gc-flag',t.flag));
       row.appendChild(mk('span','gc-name',s.name));
       if(OWNERSHIP_REVEALED&&ownerIdx>=0){
@@ -799,7 +840,7 @@ function renderKnockout(){
     } else {
       for(var mi=0;mi<matches.length;mi++){
         var m=matches[mi];
-        var mc=mk('div','match-card');
+        var mc=mk('div','match-card gb');
         var done=!!m.winner;
         mc.appendChild(makeMatchRow(m.home,m.winner===m.home,done&&m.winner!==m.home));
         mc.appendChild(makeMatchRow(m.away,m.winner===m.away,done&&m.winner!==m.away));
@@ -823,7 +864,9 @@ function renderLeaderboard(){
   for(var ri=0;ri<ranked.length;ri++){
     var p=ranked[ri]; var rank=ri;
     var col=PLAYER_COLS[p.i];
-    var row=mk('div','lb-row'+(rank===0?' lb-1':rank===1?' lb-2':rank===2?' lb-3':''));
+    var row=mk('div','lb-row gb');
+    row.style.borderColor=col;
+    row.style.borderLeftWidth='4px';
     var rk=mk('div','lb-rank'+(rank===0?' r1':rank===1?' r2':rank===2?' r3':' rn'),rank<3?medals[rank]:('#'+(rank+1)));
     row.appendChild(rk);
     var info=mk('div','lb-info');
@@ -954,7 +997,24 @@ function showPhase(p){
 var deal=runDeal(DRAW_SEED);
 appHands=deal.hands;
 appPicks=deal.picks;
-renderDrawGrid(0);
+
+// Restore persisted state from localStorage
+try {
+  if(localStorage.getItem('wc26_draw_done')==='true'){
+    drawDone=true; drawStarted=true; pickIdx=appPicks.length-1;
+    // Show draw as complete
+    var dw=el('drawWaiting'); if(dw) dw.style.display='none';
+    var da=el('drawActive'); if(da) da.style.display='none';
+    var dd=el('drawDone'); if(dd) dd.style.display='block';
+  }
+  if(localStorage.getItem('wc26_ownership_revealed')==='true'){
+    OWNERSHIP_REVEALED=true;
+    var rb=el('revealOwnershipBtn');
+    if(rb){ rb.textContent='Teams Revealed!'; rb.disabled=true; }
+  }
+} catch(e){}
+
+renderDrawGrid(drawDone?48:0);
 renderLeaderboard();
 fetchLiveData();
 var hideAfter=Date.UTC(2026,5,7,18,0,0);
