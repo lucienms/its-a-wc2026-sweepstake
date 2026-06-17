@@ -452,7 +452,10 @@ button{cursor:pointer;border:none;outline:none;font-family:inherit;}
 
 <script>
 /* ── CONFIG ── */
-var WORKER_URL = ''; // paste your Cloudflare Worker URL here once deployed
+var API_FOOTBALL_KEY = '2b0f0f2b3014111d1a655fbf82b3df7c';
+var API_FOOTBALL_BASE = 'https://v3.football.api-sports.io';
+var WC_LEAGUE_ID = 1;   // World Cup competition ID on API-Football
+var WC_SEASON = 2026;
 
 /* ── PLAYERS & TEAMS ── */
 var PLAYERS = ['Conor','Dave','George','Jack','Joel','LJ','Luc','Peter'];
@@ -902,40 +905,8 @@ function setApiStatus(color,msg){
   if(dot) dot.className='api-dot '+color;
   if(txt) txt.textContent=msg;
 }
-function processStandings(data){
-  liveGroups={};
-  if(!data.standings) return;
-  for(var i=0;i<data.standings.length;i++){
-    var grp=data.standings[i];
-    if(!grp.group) continue;
-    var code=grp.group.replace('GROUP_','');
-    var rows=[];
-    for(var j=0;j<grp.table.length;j++){
-      var row=grp.table[j];
-      rows.push({name:normName(row.team.shortName||row.team.name),pts:row.points,played:row.playedGames,w:row.won,d:row.draw,l:row.lost,gf:row.goalsFor,ga:row.goalsAgainst,gd:row.goalDifference});
-    }
-    liveGroups[code]=rows;
-  }
-}
-function processMatches(data){
-  liveKnockout={r32:[],r16:[],qf:[],sf:[],final:[]};
-  var stageMap={'ROUND_OF_32':'r32','ROUND_OF_16':'r16','QUARTER_FINALS':'qf','SEMI_FINALS':'sf','FINAL':'final','LAST_16':'r16','LAST_8':'qf','LAST_4':'sf'};
-  if(!data.matches) return;
-  for(var i=0;i<data.matches.length;i++){
-    var m=data.matches[i];
-    var stage=stageMap[m.stage];
-    if(!stage) continue;
-    var home=normName(m.homeTeam.shortName||m.homeTeam.name||'TBD');
-    var away=normName(m.awayTeam.shortName||m.awayTeam.name||'TBD');
-    var winner=null;
-    if(m.status==='FINISHED'||m.status==='AWARDED'){
-      if(m.score.winner==='HOME_TEAM') winner=home;
-      else if(m.score.winner==='AWAY_TEAM') winner=away;
-    }
-    liveKnockout[stage].push({home:home,away:away,winner:winner,status:m.status});
-  }
-  updateResultsFromMatches();
-}
+// (old football-data.org standings processor removed — using API-Football)
+// (old football-data.org matches processor removed — using API-Football)
 function updateResultsFromMatches(){
   LIVE_RESULTS={};
   var stageOrder=['r32','r16','qf','sf','final'];
@@ -958,20 +929,88 @@ function updateResultsFromMatches(){
     }
   }
 }
+function apiFootballFetch(path){
+  var url = API_FOOTBALL_BASE + path;
+  return fetch(url, {
+    headers: { 'x-apisports-key': API_FOOTBALL_KEY }
+  }).then(function(r){
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    return r.json();
+  });
+}
+
 function fetchLiveData(){
-  if(!WORKER_URL){ setApiStatus('grey','Configure WORKER_URL for live data'); renderGroups(); renderKnockout(); return; }
   setApiStatus('amber','Fetching live data...');
-  var stDone=false, mDone=false, stData=null, mData=null;
+  var stDone=false, mDone=false, stData=null, mData=null, anyError=false;
+
   function tryFinish(){
     if(!stDone||!mDone) return;
-    if(stData) processStandings(stData);
-    if(mData) processMatches(mData);
-    var now=new Date();
-    setApiStatus('green','Live — updated '+now.getHours()+':'+('0'+now.getMinutes()).slice(-2));
+    if(stData) processStandingsApiFootball(stData);
+    if(mData) processMatchesApiFootball(mData);
+    if(anyError && !stData && !mData){
+      setApiStatus('red','Live data unavailable — showing static groups');
+    } else {
+      var now=new Date();
+      setApiStatus('green','Live — updated '+now.getHours()+':'+('0'+now.getMinutes()).slice(-2));
+    }
     renderGroups(); renderKnockout(); renderLeaderboard();
   }
-  fetch(WORKER_URL+'/standings').then(function(r){return r.json();}).then(function(d){stData=d;stDone=true;tryFinish();}).catch(function(){stDone=true;setApiStatus('red','Live data unavailable');tryFinish();});
-  fetch(WORKER_URL+'/matches').then(function(r){return r.json();}).then(function(d){mData=d;mDone=true;tryFinish();}).catch(function(){mDone=true;tryFinish();});
+
+  apiFootballFetch('/standings?league='+WC_LEAGUE_ID+'&season='+WC_SEASON)
+    .then(function(d){ stData=d; stDone=true; tryFinish(); })
+    .catch(function(e){ console.error('Standings fetch error:',e); anyError=true; stDone=true; tryFinish(); });
+
+  apiFootballFetch('/fixtures?league='+WC_LEAGUE_ID+'&season='+WC_SEASON)
+    .then(function(d){ mData=d; mDone=true; tryFinish(); })
+    .catch(function(e){ console.error('Fixtures fetch error:',e); anyError=true; mDone=true; tryFinish(); });
+}
+
+function processStandingsApiFootball(data){
+  liveGroups={};
+  if(!data.response || !data.response[0] || !data.response[0].league || !data.response[0].league.standings) return;
+  var allGroups = data.response[0].league.standings; // array of arrays, one per group
+  var groupLetters = ['A','B','C','D','E','F','G','H','I','J','K','L'];
+  for(var gi=0; gi<allGroups.length; gi++){
+    var groupArr = allGroups[gi];
+    var code = groupLetters[gi] || String(gi+1);
+    var rows = [];
+    for(var j=0;j<groupArr.length;j++){
+      var row = groupArr[j];
+      rows.push({
+        name: normName(row.team.name),
+        pts: row.points,
+        played: row.all.played,
+        w: row.all.win, d: row.all.draw, l: row.all.lose,
+        gf: row.all.goals.for, ga: row.all.goals.against,
+        gd: row.goalsDiff
+      });
+    }
+    liveGroups[code]=rows;
+  }
+}
+
+function processMatchesApiFootball(data){
+  liveKnockout={r32:[],r16:[],qf:[],sf:[],final:[]};
+  if(!data.response) return;
+  var roundMap = {
+    'Round of 32':'r32','Round of 16':'r16',
+    'Quarter-finals':'qf','Semi-finals':'sf','Final':'final'
+  };
+  for(var i=0;i<data.response.length;i++){
+    var m = data.response[i];
+    var roundName = m.league.round;
+    var stage = roundMap[roundName];
+    if(!stage) continue;
+    var home = normName(m.teams.home.name);
+    var away = normName(m.teams.away.name);
+    var winner = null;
+    if(m.fixture.status.short === 'FT' || m.fixture.status.short === 'AET' || m.fixture.status.short === 'PEN'){
+      if(m.teams.home.winner === true) winner = home;
+      else if(m.teams.away.winner === true) winner = away;
+    }
+    liveKnockout[stage].push({home:home, away:away, winner:winner, status:m.fixture.status.short});
+  }
+  updateResultsFromMatches();
 }
 
 /* ── NAV ── */
@@ -1017,6 +1056,7 @@ try {
 renderDrawGrid(drawDone?48:0);
 renderLeaderboard();
 fetchLiveData();
+setInterval(fetchLiveData, 30*60*1000); // refresh every 30 min — keeps within API-Football's 100 req/day free limit
 var hideAfter=Date.UTC(2026,5,7,18,0,0);
 var dtw=el('drawTimeWrap'); if(dtw&&Date.now()>hideAfter) dtw.style.display='none';
 switchTab('bracket');
