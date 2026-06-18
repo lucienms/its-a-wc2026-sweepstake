@@ -801,6 +801,7 @@ function makeMatchRow(name,isWin,isLose){
   return mr;
 }
 function renderKnockout(){
+  try{
   var container=el('koGrid');
   if(!container) return;
   var rounds=[
@@ -853,6 +854,7 @@ function renderKnockout(){
     col.appendChild(md);
     container.appendChild(col);
   }
+  } catch(e){ console.error('renderKnockout error:', e); }
 }
 
 /* ── RENDER: LEADERBOARD ── */
@@ -957,22 +959,29 @@ function fetchLiveData(){
   }
 
   apiFootballFetch('/standings?league='+WC_LEAGUE_ID+'&season='+WC_SEASON)
-    .then(function(d){ stData=d; stDone=true; tryFinish(); })
+    .then(function(d){ console.log('Standings response:', d); stData=d; stDone=true; tryFinish(); })
     .catch(function(e){ console.error('Standings fetch error:',e); anyError=true; stDone=true; tryFinish(); });
 
   apiFootballFetch('/fixtures?league='+WC_LEAGUE_ID+'&season='+WC_SEASON)
-    .then(function(d){ mData=d; mDone=true; tryFinish(); })
+    .then(function(d){ console.log('Fixtures response:', d); mData=d; mDone=true; tryFinish(); })
     .catch(function(e){ console.error('Fixtures fetch error:',e); anyError=true; mDone=true; tryFinish(); });
 }
 
 function processStandingsApiFootball(data){
   liveGroups={};
-  if(!data.response || !data.response[0] || !data.response[0].league || !data.response[0].league.standings) return;
-  var allGroups = data.response[0].league.standings; // array of arrays, one per group
-  var groupLetters = ['A','B','C','D','E','F','G','H','I','J','K','L'];
+  if(!data.response || !data.response[0] || !data.response[0].league || !data.response[0].league.standings) {
+    console.warn('No standings data in response', data);
+    return;
+  }
+  var allGroups = data.response[0].league.standings; // array of arrays, one per group (order not guaranteed)
   for(var gi=0; gi<allGroups.length; gi++){
     var groupArr = allGroups[gi];
-    var code = groupLetters[gi] || String(gi+1);
+    if(!groupArr || groupArr.length===0) continue;
+    // Read the actual group label the API provides, e.g. "Group A" -> "A"
+    var rawGroup = groupArr[0].group || '';
+    var match = rawGroup.match(/([A-L])\s*$/);
+    var code = match ? match[1] : null;
+    if(!code) { console.warn('Could not parse group code from', rawGroup); continue; }
     var rows = [];
     for(var j=0;j<groupArr.length;j++){
       var row = groupArr[j];
@@ -989,26 +998,33 @@ function processStandingsApiFootball(data){
   }
 }
 
+function classifyRound(roundName){
+  var r = (roundName||'').toLowerCase();
+  if(r.indexOf('32')>=0) return 'r32';
+  if(r.indexOf('16')>=0) return 'r16';
+  if(r.indexOf('quarter')>=0) return 'qf';
+  if(r.indexOf('semi')>=0) return 'sf';
+  if(r.indexOf('final')>=0 && r.indexOf('semi')<0 && r.indexOf('quarter')<0) return 'final';
+  return null; // group stage or unrecognised — ignore for knockout view
+}
+
 function processMatchesApiFootball(data){
   liveKnockout={r32:[],r16:[],qf:[],sf:[],final:[]};
-  if(!data.response) return;
-  var roundMap = {
-    'Round of 32':'r32','Round of 16':'r16',
-    'Quarter-finals':'qf','Semi-finals':'sf','Final':'final'
-  };
+  if(!data.response) { console.warn('No fixtures data in response', data); return; }
   for(var i=0;i<data.response.length;i++){
     var m = data.response[i];
-    var roundName = m.league.round;
-    var stage = roundMap[roundName];
+    var roundName = m.league && m.league.round ? m.league.round : '';
+    var stage = classifyRound(roundName);
     if(!stage) continue;
     var home = normName(m.teams.home.name);
     var away = normName(m.teams.away.name);
     var winner = null;
-    if(m.fixture.status.short === 'FT' || m.fixture.status.short === 'AET' || m.fixture.status.short === 'PEN'){
+    var statusShort = m.fixture.status.short;
+    if(statusShort === 'FT' || statusShort === 'AET' || statusShort === 'PEN'){
       if(m.teams.home.winner === true) winner = home;
       else if(m.teams.away.winner === true) winner = away;
     }
-    liveKnockout[stage].push({home:home, away:away, winner:winner, status:m.fixture.status.short});
+    liveKnockout[stage].push({home:home, away:away, winner:winner, status:statusShort});
   }
   updateResultsFromMatches();
 }
