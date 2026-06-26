@@ -557,7 +557,11 @@ var NAME_MAP = {
 /* ── HELPERS ── */
 function normName(n){ return NAME_MAP[n] || n; }
 function getTeam(n){ for(var i=0;i<ALL_TEAMS.length;i++){ if(ALL_TEAMS[i].name===n) return ALL_TEAMS[i]; } return null; }
-function getResult(n){ return LIVE_RESULTS[n] || 'groupStage'; }
+function getResult(n){
+  if(LIVE_RESULTS[n]) return LIVE_RESULTS[n]; // actual knockout result takes priority (always more advanced)
+  if(GROUP_QUAL_STATUS[n]==='qualified') return 'r32'; // qualified but R32 fixture not yet confirmed by API
+  return 'groupStage';
+}
 function getPts(n){ return STAGE_POINTS[getResult(n)] || 0; }
 function potColor(p){ var m={1:'#F5C518',2:'#C0C0C0',3:'#CD7F32',4:'#6BAED6'}; return m[p]||'#666'; }
 function stageColor(s){ var m={r32:'#43A047',r16:'#8BC34A',qf:'#FFC107',sf:'#FF9800',final:'#F44336',winner:'#F5C518'}; return m[s]||'#555'; }
@@ -867,7 +871,29 @@ function renderKnockout(){
   container.textContent='';
   for(var ri=0;ri<rounds.length;ri++){
     var r=rounds[ri];
-    var matches=liveKnockout[r.key]||[];
+    var matches=(liveKnockout[r.key]||[]).slice();
+
+    // For Round of 32 specifically: add any team we know has qualified
+    // (via GROUP_QUAL_STATUS) but doesn't yet have a confirmed fixture pairing
+    // from the API. Shown as "vs TBC" so the bracket reflects known qualifiers
+    // even before the official draw/pairing is confirmed.
+    if(r.key==='r32'){
+      var pairedTeams = {};
+      for(var pi=0;pi<matches.length;pi++){
+        if(matches[pi].home) pairedTeams[matches[pi].home]=true;
+        if(matches[pi].away) pairedTeams[matches[pi].away]=true;
+      }
+      var qualifiedNames = Object.keys(GROUP_QUAL_STATUS).filter(function(n){
+        return GROUP_QUAL_STATUS[n]==='qualified';
+      });
+      for(var qi=0;qi<qualifiedNames.length;qi++){
+        var qn = qualifiedNames[qi];
+        if(!pairedTeams[qn]){
+          matches.push({home:qn, away:'TBD', winner:null, status:'NS', pending:true});
+        }
+      }
+    }
+
     var col=mk('div','ko-round');
     var rh=mk('div','ko-round-header',r.label);
     rh.appendChild(mk('span','ko-pts',r.pts+' pts to reach'));
