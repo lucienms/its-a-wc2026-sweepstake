@@ -165,17 +165,16 @@ button{cursor:pointer;border:none;outline:none;font-family:inherit;}
 .group-card{background:#181828;border:2px solid transparent;border-radius:14px;overflow:hidden;position:relative;}
 .gc-header{padding:9px 13px;display:flex;align-items:center;justify-content:space-between;background:#0c0c0c;border-bottom:1px solid #1a1a1a;}
 .gc-letter{font-family:'Bebas Neue',sans-serif;font-size:26px;letter-spacing:2px;color:var(--gold);line-height:1;}
-.gc-status{font-family:'Barlow Condensed',sans-serif;font-size:10px;letter-spacing:2px;color:#444;text-transform:uppercase;}
+.gc-status{font-family:'Barlow Condensed',sans-serif;font-size:11px;letter-spacing:2px;color:#999;text-transform:uppercase;font-weight:600;}
 .gc-teams{padding:6px;display:flex;flex-direction:column;gap:3px;}
-.gc-team{display:flex;align-items:center;gap:7px;padding:6px 8px;border-radius:7px;}
+.gc-team{display:grid;grid-template-columns:22px 1fr 56px 28px 38px;align-items:center;gap:7px;padding:8px 10px;border-radius:7px;}
 .gc-team:hover{background:#0c0c0c;}
-.gc-team.qualified{border-left:3px solid var(--trophy-green);}
-.gc-team.eliminated{opacity:.38;}
-.gc-flag{font-size:16px;flex-shrink:0;}
-.gc-name{flex:1;font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:600;}
-.gc-owner{font-family:'Barlow Condensed',sans-serif;font-size:9px;font-weight:700;letter-spacing:1px;padding:2px 6px;border-radius:100px;flex-shrink:0;}
-.gc-gpts{font-family:'Barlow Condensed',sans-serif;font-size:12px;color:#555;min-width:16px;text-align:center;}
-.gc-spts{font-family:'Bebas Neue',sans-serif;font-size:17px;color:var(--gold);min-width:22px;text-align:right;}
+.gc-flag{font-size:16px;flex-shrink:0;text-align:center;}
+.gc-name{font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.gc-owner-cell{display:flex;justify-content:flex-start;min-width:0;}
+.gc-owner{font-family:'Barlow Condensed',sans-serif;font-size:9px;font-weight:700;letter-spacing:1px;padding:2px 6px;border-radius:100px;white-space:nowrap;}
+.gc-gpts{font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;text-align:center;}
+.gc-spts{font-family:'Bebas Neue',sans-serif;font-size:16px;text-align:right;}
 
 /* KNOCKOUT */
 .ko-outer{overflow-x:auto;padding-bottom:12px;}
@@ -400,7 +399,7 @@ button{cursor:pointer;border:none;outline:none;font-family:inherit;}
     <button class="phase-btn" id="phaseKoBtn" onclick="showPhase('knockout')">Knockout</button>
   </div>
   <div id="groupsView"><div class="groups-grid" id="groupsGrid"><div style="color:#555;font-family:'Barlow Condensed';letter-spacing:2px;font-size:13px">Loading groups&hellip;</div></div></div>
-  <div id="knockoutView" class="hidden">
+  <div id="knockoutView" style="display:none">
     <div id="championDisplay"></div>
     <div class="ko-outer"><div class="ko-grid" id="koGrid"></div></div>
   </div>
@@ -551,7 +550,8 @@ var NAME_MAP = {
   'Bosnia and Herzegovina':'Bosnia & Herz.','Bosnia & Herzegovina':'Bosnia & Herz.',
   'Turkey':'Türkiye','Korea Republic':'South Korea',
   'Czech Republic':'Czechia','Congo DR':'DR Congo',
-  'Democratic Republic of Congo':'DR Congo','Cabo Verde':'Cape Verde'
+  'Democratic Republic of Congo':'DR Congo','Cabo Verde':'Cape Verde',
+  'Cape Verde Islands':'Cape Verde'
 };
 
 /* ── HELPERS ── */
@@ -751,36 +751,65 @@ function renderGroups(){
       if(b.gd!==a.gd) return b.gd-a.gd;
       return b.gf-a.gf;
     });
-    var maxPlayed=sorted.length>0?(sorted[0].played||0):0;
+    var maxPlayed=sorted.length>0?Math.max.apply(null, sorted.map(function(r){return r.played||0;})):0;
     var card=mk('div','group-card gb');
     var hdr=mk('div','gc-header');
     hdr.appendChild(mk('span','gc-letter','Group '+g));
-    hdr.appendChild(mk('span','gc-status',maxPlayed>0?(maxPlayed+'/6 played'):'Not started'));
+    var statusText = maxPlayed>=3 ? 'Complete' : (maxPlayed>0 ? (maxPlayed+'/3 played') : 'Not started');
+    hdr.appendChild(mk('span','gc-status',statusText));
     card.appendChild(hdr);
     var td=mk('div','gc-teams');
     for(var ti=0;ti<sorted.length;ti++){
       var s=sorted[ti];
       var t=getTeam(s.name)||{flag:'',name:s.name};
-      var stg=getResult(s.name);
-      var qual=stg!=='groupStage';
-      var elim=s.played>=3&&!qual&&ti>1;
-      var spts=getPts(s.name);
+      var qualStatus = GROUP_QUAL_STATUS[s.name] || 'tbc';
+      var qual = qualStatus==='qualified';
+      var elim = qualStatus==='eliminated';
       var ownerIdx=getOwnerIdx(s.name);
       var ownerCol=OWNERSHIP_REVEALED&&ownerIdx>=0?PLAYER_COLS[ownerIdx]:null;
+
       var row=mk('div','gc-team'+(qual?' qualified':'')+(elim?' eliminated':''));
-      if(ownerCol) row.style.background=ownerCol+'40';
-      if(ti===1) row.style.borderBottom='3px solid #F5C518';
-      else if(ti===2) row.style.borderBottom='2px solid #E53935';
-      row.appendChild(mk('span','gc-flag',t.flag));
-      row.appendChild(mk('span','gc-name',s.name));
+      if(elim){
+        row.style.background='#1a1a1a';
+      } else if(ownerCol){
+        row.style.background=ownerCol+'40';
+      }
+      if(qual) row.style.borderLeft='4px solid #00C853';
+      else if(elim) row.style.borderLeft='4px solid #E53935';
+
+      var flagEl=mk('span','gc-flag',t.flag);
+      if(elim) flagEl.style.opacity='0.4';
+      row.appendChild(flagEl);
+
+      var nameEl=mk('span','gc-name',s.name);
+      if(elim) nameEl.style.color='#777';
+      row.appendChild(nameEl);
+
+      // Player name column — always present (even if not revealed, reserve the space)
+      var ownerCell=mk('span','gc-owner-cell');
       if(OWNERSHIP_REVEALED&&ownerIdx>=0){
         var oe=mk('span','gc-owner',PLAYERS[ownerIdx]);
-        oe.style.background=ownerCol+'33';
-        oe.style.color=ownerCol;
-        row.appendChild(oe);
+        oe.style.background=elim?'#33333355':(ownerCol+'33');
+        oe.style.color=elim?'#888':ownerCol;
+        ownerCell.appendChild(oe);
       }
-      row.appendChild(mk('span','gc-gpts',s.pts));
-      if(spts>0){ var sp=mk('span','gc-spts',spts); row.appendChild(sp); }
+      row.appendChild(ownerCell);
+
+      // WC points column (actual tournament points) — white text
+      var gptsEl=mk('span','gc-gpts',s.pts);
+      gptsEl.style.color = elim?'#666':'#fff';
+      row.appendChild(gptsEl);
+
+      // Sweepstake points column — always shown: 3 / 0 / TBC
+      var sptsLabel, sptsColor;
+      if(qualStatus==='qualified'){ sptsLabel='3'; sptsColor='#00C853'; }
+      else if(qualStatus==='eliminated'){ sptsLabel='0'; sptsColor='#777'; }
+      else { sptsLabel='TBC'; sptsColor='#888'; }
+      var sp=mk('span','gc-spts',sptsLabel);
+      sp.style.color=sptsColor;
+      if(sptsLabel==='TBC') sp.style.fontSize='13px';
+      row.appendChild(sp);
+
       td.appendChild(row);
     }
     card.appendChild(td);
@@ -886,8 +915,24 @@ function renderLeaderboard(){
       for(var ti=0;ti<p.teams.length;ti++){
         var t=p.teams[ti];
         var stg=getResult(t.name); var pts=getPts(t.name); var isW=stg==='winner';
-        var chip=mk('div','lb-chip'+(pts>0?' cp':'')+(isW?' cw':''),t.flag+' '+t.name);
-        if(pts>0){ var ps=mk('span','',pts+'p'); ps.style.color=stageColor(stg); chip.appendChild(ps); }
+        var qualStatus = GROUP_QUAL_STATUS[t.name] || 'tbc';
+        var chipClass='lb-chip';
+        if(pts>0) chipClass+=' cp';
+        if(isW) chipClass+=' cw';
+        var label = t.flag+' '+t.name;
+        var chip=mk('div',chipClass,label);
+        if(qualStatus==='qualified'){
+          chip.style.border='2px solid #00C853';
+        } else if(qualStatus==='eliminated'){
+          chip.style.border='2px solid #E53935';
+          chip.style.opacity='0.55';
+          chip.style.background='#1a1a1a';
+        }
+        if(pts>0){
+          var ps=mk('span','',' '+pts+'p'); ps.style.color=stageColor(stg); chip.appendChild(ps);
+        } else if(qualStatus==='eliminated'){
+          var ps2=mk('span','',' 0p'); ps2.style.color='#888'; chip.appendChild(ps2);
+        }
         chips.appendChild(chip);
       }
     }
@@ -931,6 +976,104 @@ function updateResultsFromMatches(){
     }
   }
 }
+
+/* ── GROUP QUALIFICATION LOGIC ──
+   Determines each team's group-stage qualification status:
+   'qualified'   — through to Round of 32 (top 2, or one of best 8 third-place teams, or maths guarantees it)
+   'eliminated'  — mathematically cannot qualify even with max points from remaining games
+   'tbc'         — still undetermined
+   Returns a map: teamName -> 'qualified' | 'eliminated' | 'tbc'
+*/
+var GROUP_QUAL_STATUS = {};
+
+function computeGroupQualification(){
+  GROUP_QUAL_STATUS = {};
+  var groups = ['A','B','C','D','E','F','G','H','I','J','K','L'];
+  var groupSorted = {}; // g -> sorted rows array
+  var thirdPlaceTeams = []; // {name, pts, gd, gf, group}
+
+  for(var gi=0; gi<groups.length; gi++){
+    var g = groups[gi];
+    var rows = liveGroups[g];
+    if(!rows || rows.length===0){
+      var sl = STATIC_GROUPS[g];
+      rows = [];
+      for(var si=0; si<sl.length; si++) rows.push({name:sl[si],pts:0,played:0,gf:0,ga:0,gd:0});
+    }
+    var sorted = rows.slice().sort(function(a,b){
+      if(b.pts!==a.pts) return b.pts-a.pts;
+      if(b.gd!==a.gd) return b.gd-a.gd;
+      return b.gf-a.gf;
+    });
+    groupSorted[g] = sorted;
+    if(sorted.length>=3) thirdPlaceTeams.push({name:sorted[2].name, pts:sorted[2].pts, gd:sorted[2].gd, gf:sorted[2].gf, group:g});
+  }
+
+  // Rank all third-place teams across all 12 groups; best 8 qualify
+  var rankedThirds = thirdPlaceTeams.slice().sort(function(a,b){
+    if(b.pts!==a.pts) return b.pts-a.pts;
+    if(b.gd!==a.gd) return b.gd-a.gd;
+    return b.gf-a.gf;
+  });
+  var qualifyingThirdNames = {};
+  for(var i=0;i<Math.min(8,rankedThirds.length);i++){
+    qualifyingThirdNames[rankedThirds[i].name] = true;
+  }
+  // Track the pts cutoff for thirds — used to decide TBC vs eliminated for undetermined groups
+  var allGroupsComplete = true;
+  for(var gi=0; gi<groups.length; gi++){
+    var g = groups[gi];
+    var sorted = groupSorted[g];
+    var maxPlayed = sorted.length>0 ? Math.max.apply(null, sorted.map(function(r){return r.played||0;})) : 0;
+    if(maxPlayed < 3) allGroupsComplete = false;
+  }
+  var eighthBestThirdPts = rankedThirds.length>=8 ? rankedThirds[7].pts : -1;
+
+  for(var gi=0; gi<groups.length; gi++){
+    var g = groups[gi];
+    var sorted = groupSorted[g];
+    var maxPlayed = sorted.length>0 ? Math.max.apply(null, sorted.map(function(r){return r.played||0;})) : 0;
+    var groupComplete = maxPlayed >= 3;
+
+    for(var ti=0; ti<sorted.length; ti++){
+      var team = sorted[ti];
+      var status;
+      if(ti===0 || ti===1){
+        // Top 2: qualified once their position is mathematically safe.
+        // Simplify: if group is complete, they're qualified. If not complete but they
+        // have enough points that 3rd place can't catch them even with a win, qualified.
+        if(groupComplete){
+          status = 'qualified';
+        } else {
+          var maxPossible3rd = (sorted[2] ? sorted[2].pts : 0) + (3-(sorted[2]?sorted[2].played:0))*3;
+          status = (team.pts >= maxPossible3rd) ? 'qualified' : 'tbc';
+        }
+      } else if(ti===2){
+        // Third place: depends on cross-group comparison
+        if(!groupComplete){
+          status = 'tbc'; // can't rank thirds until group finishes
+        } else if(qualifyingThirdNames[team.name]){
+          status = 'qualified';
+        } else if(rankedThirds.length>=8 && allGroupsComplete){
+          status = 'eliminated'; // all thirds known, didn't make top 8
+        } else {
+          status = 'tbc'; // other groups still playing, ranking could change
+        }
+      } else {
+        // 4th place: eliminated once group is complete (can never finish top 3)
+        // or mathematically eliminated even mid-group if points gap too large
+        if(groupComplete){
+          status = 'eliminated';
+        } else {
+          var maxPossible = team.pts + (3-team.played)*3;
+          var safe3rd = sorted[2] ? sorted[2].pts : 0;
+          status = (maxPossible <= safe3rd) ? 'eliminated' : 'tbc';
+        }
+      }
+      GROUP_QUAL_STATUS[team.name] = status;
+    }
+  }
+}
 function apiFootballFetch(path){
   var url = API_FOOTBALL_BASE + path;
   return fetch(url, {
@@ -949,6 +1092,7 @@ function fetchLiveData(){
     if(!stDone||!mDone) return;
     if(stData) processStandingsApiFootball(stData);
     if(mData) processMatchesApiFootball(mData);
+    computeGroupQualification();
     if(anyError && !stData && !mData){
       setApiStatus('red','Live data unavailable — showing static groups');
     } else {
@@ -1069,10 +1213,11 @@ try {
   }
 } catch(e){}
 
+computeGroupQualification();
 renderDrawGrid(drawDone?48:0);
 renderLeaderboard();
 fetchLiveData();
-setInterval(fetchLiveData, 30*60*1000); // refresh every 30 min — keeps within API-Football's 100 req/day free limit
+setInterval(fetchLiveData, 60*1000); // refresh every 60 seconds — comfortably within paid tier's 7,500 req/day limit
 var hideAfter=Date.UTC(2026,5,7,18,0,0);
 var dtw=el('drawTimeWrap'); if(dtw&&Date.now()>hideAfter) dtw.style.display='none';
 switchTab('bracket');
