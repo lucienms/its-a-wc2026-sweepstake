@@ -167,12 +167,12 @@ button{cursor:pointer;border:none;outline:none;font-family:inherit;}
 .gc-letter{font-family:'Bebas Neue',sans-serif;font-size:26px;letter-spacing:2px;color:var(--gold);line-height:1;}
 .gc-status{font-family:'Barlow Condensed',sans-serif;font-size:11px;letter-spacing:2px;color:#999;text-transform:uppercase;font-weight:600;}
 .gc-teams{padding:6px;display:flex;flex-direction:column;gap:3px;}
-.gc-team{display:grid;grid-template-columns:22px 1fr 56px 28px 38px;align-items:center;gap:7px;padding:8px 10px;border-radius:7px;}
+.gc-team{display:grid;grid-template-columns:20px minmax(0,1fr) 48px 24px 32px;align-items:center;gap:6px;padding:8px 9px;border-radius:7px;}
 .gc-team:hover{background:#0c0c0c;}
 .gc-flag{font-size:16px;flex-shrink:0;text-align:center;}
 .gc-name{font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .gc-owner-cell{display:flex;justify-content:flex-start;min-width:0;}
-.gc-owner{font-family:'Barlow Condensed',sans-serif;font-size:9px;font-weight:700;letter-spacing:1px;padding:2px 6px;border-radius:100px;white-space:nowrap;}
+.gc-owner{font-family:'Barlow Condensed',sans-serif;font-size:9px;font-weight:700;letter-spacing:0.5px;padding:2px 5px;border-radius:100px;white-space:nowrap;display:inline-block;max-width:100%;overflow:hidden;text-overflow:ellipsis;}
 .gc-gpts{font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;text-align:center;}
 .gc-spts{font-family:'Bebas Neue',sans-serif;font-size:16px;text-align:right;}
 
@@ -184,13 +184,13 @@ button{cursor:pointer;border:none;outline:none;font-family:inherit;}
 .ko-pts{display:block;font-size:9px;color:#555;letter-spacing:1px;margin-top:2px;}
 .ko-matches{display:flex;flex-direction:column;gap:6px;padding:0 6px;justify-content:space-around;flex:1;}
 .match-card{background:#181828;border:2px solid transparent;border-radius:10px;overflow:hidden;position:relative;}
-.mt-row{display:flex;align-items:center;gap:6px;padding:7px 9px;font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:600;}
+.mt-row{display:flex;align-items:center;gap:8px;padding:8px 10px;font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:600;}
 .mt-row:first-child{border-bottom:1px solid #1a1a1a;}
 .mt-row.mw{background:rgba(245,197,24,.07);color:var(--gold);}
 .mt-row.ml{opacity:.35;}
-.mt-flag{font-size:13px;flex-shrink:0;}
-.mt-name{flex:1;}
-.mt-owner{font-size:8px;color:#555;font-weight:400;}
+.mt-flag{font-size:15px;flex-shrink:0;}
+.mt-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.mt-owner{font-size:10px;font-weight:700;letter-spacing:0.5px;padding:3px 8px;border-radius:100px;flex-shrink:0;}
 .mt-tbd{padding:7px 9px;font-family:'Barlow Condensed',sans-serif;font-size:10px;letter-spacing:2px;color:#333;text-transform:uppercase;}
 
 .champion-card{background:linear-gradient(135deg,#1a1200,#001208);border:2px solid var(--gold);border-radius:20px;padding:28px;text-align:center;margin-bottom:20px;}
@@ -822,11 +822,18 @@ function makeMatchRow(name,isWin,isLose){
   var mr=mk('div','mt-row'+(isWin?' mw':'')+(isLose?' ml':''));
   if(!name||name==='TBD'){ mr.className='mt-tbd'; mr.textContent='TBD'; return mr; }
   var tt=getTeam(name)||{flag:'',name:name};
+  var ow=getOwner(name);
+  var ownerCol = ow ? PLAYER_COLS[ow.idx] : null;
+  if(ownerCol) mr.style.background = ownerCol+'30';
   var fl=mk('span','mt-flag',tt.flag);
   var nm=mk('span','mt-name',name);
-  var ow=getOwner(name);
-  if(ow){ var os=mk('span','mt-owner','('+ow.name+')'); nm.appendChild(os); }
   mr.appendChild(fl); mr.appendChild(nm);
+  if(ow){
+    var os=mk('span','mt-owner',ow.name);
+    os.style.background=ownerCol+'40';
+    os.style.color=ownerCol;
+    mr.appendChild(os);
+  }
   return mr;
 }
 function renderKnockout(){
